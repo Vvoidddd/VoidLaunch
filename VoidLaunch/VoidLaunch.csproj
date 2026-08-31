@@ -11,7 +11,7 @@
     <Product>VoidLaunch</Product>
     <Authors>Vvoidddd</Authors>
     <Company>Vvoidddd</Company>
-    <Description>Open-source Windows game library and launcher.</Description>
+    <Description>Source-available Windows game library and launcher.</Description>
     <Version>1.0.0</Version>
     <AssemblyVersion>$(Version).0</AssemblyVersion>
     <FileVersion>$(Version).0</FileVersion>

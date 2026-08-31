@@ -1,94 +1,63 @@
 # VoidLaunch
 
-VoidLaunch is an open-source Windows game library and launcher built with WPF and .NET 8. It scans local game folders, organizes installed games into a themed library, lets each game use a manually selected executable, and launches games through the Windows shell.
+VoidLaunch is a Windows game launcher I made because I wanted one clean place for games that are not all tied to the same store or launcher.
 
-[![Publish VoidLaunch](https://github.com/Vvoidddd/VoidLaunch/actions/workflows/release.yml/badge.svg)](https://github.com/Vvoidddd/VoidLaunch/actions/workflows/release.yml)
-[![Latest release](https://img.shields.io/github/v/release/Vvoidddd/VoidLaunch)](https://github.com/Vvoidddd/VoidLaunch/releases/latest)
+You give it one or more game folders and it scans them, groups the games together, and tries to pick the right executable. If it picks the wrong one, open the game's page and choose the EXE you actually want it to start.
 
-## Features
-
-- Scans configured folders for playable Windows executables.
-- Filters installers, crash reporters, uninstallers, redistributables, modding tools, and other utility programs.
-- Merges multiple executables from one installation into a single game card.
-- Provides a game-details page for choosing the exact executable to launch.
-- Starts games through Windows Shell, like double-clicking the executable.
-- Tracks favorites and recently played games locally.
-- Extracts executable artwork when no cover image is available.
-- Includes detachable, side-docking game log windows.
-- Includes built-in themes and a safe editable theme-color format.
-- Includes Developer, About/Health, Update, and Privacy pages.
-- Checks GitHub Releases for application updates automatically.
-- Verifies update downloads using GitHub's published SHA-256 asset digest.
+[![Build and release](https://github.com/Vvoidddd/VoidLaunch/actions/workflows/release.yml/badge.svg)](https://github.com/Vvoidddd/VoidLaunch/actions/workflows/release.yml)
+[![Latest version](https://img.shields.io/github/v/release/Vvoidddd/VoidLaunch)](https://github.com/Vvoidddd/VoidLaunch/releases/latest)
 
 ## Download
 
-Download `VoidLaunch.exe` from the [latest GitHub Release](https://github.com/Vvoidddd/VoidLaunch/releases/latest), place it in any writable folder, and run it.
+Get `VoidLaunch.exe` from the [latest release](https://github.com/Vvoidddd/VoidLaunch/releases/latest).
 
-The release is one self-contained Windows x64 executable. The user does not need to install .NET separately.
+There is no installer and you do not need to install .NET. Put the EXE wherever you want and open it.
 
-## Automatic updates
+## What it can do
 
-VoidLaunch checks this repository's latest public GitHub Release at startup. An update is accepted only when:
+- Scan multiple folders for games.
+- Keep different EXEs from the same game on one game page.
+- Let you choose exactly which EXE the Play button opens.
+- Launch an EXE through Windows the same way as double-clicking it.
+- Filter out installers, uninstallers, crash reporters, mod tools, and other junk where possible.
+- Keep favorites and recently played games.
+- Use the icon from an EXE when there is no cover image.
+- Show game output in a log window that can dock to the side of the launcher.
+- Change the whole launcher with built-in themes or custom theme colors.
+- Check GitHub for updates and install a newer release.
 
-1. The release version is newer than the running assembly version.
-2. The release contains an asset named exactly `VoidLaunch.exe`.
-3. The asset is downloaded over HTTPS from GitHub.
-4. The downloaded file matches GitHub's published SHA-256 digest.
+It is still a work in progress, so the scanner will not guess every game perfectly. That is why the manual EXE picker is there.
 
-After verification, VoidLaunch closes, replaces its executable, and restarts. A temporary backup is restored if replacement fails.
+## Updates
 
-## Versioning and releases
+VoidLaunch checks the releases from this repository. Before replacing itself, it makes sure the download is named `VoidLaunch.exe` and that its SHA-256 hash matches the digest GitHub published for it.
 
-Every push to `main` runs [.github/workflows/release.yml](.github/workflows/release.yml). The workflow:
+## Building it
 
-1. Chooses a version in `MAJOR.MINOR.GITHUB_RUN_NUMBER` format.
-2. Builds a self-contained Windows x64 single-file executable.
-3. Verifies that the output contains only `VoidLaunch.exe`.
-4. Verifies the EXE's embedded file version.
-5. Creates a matching Git tag and GitHub Release.
-6. Uploads the single EXE to that release.
-
-The base major/minor version comes from `<Version>` in [VoidLaunch.csproj](VoidLaunch/VoidLaunch.csproj). For example, with a base of `1.0.0`, workflow run 7 publishes `v1.0.7`. Change the project version to `1.1.0` when beginning the 1.1 release line.
-
-You can also run the workflow manually and enter an exact version such as `1.2.0`.
-
-## Local release build
-
-The Visual Studio `FolderProfile` publishes to:
-
-```text
-C:\Users\tolik\OneDrive\Desktop\BUILDS\VoidLaunch.exe
-```
-
-Command-line equivalent:
-
-```powershell
-dotnet publish .\VoidLaunch\VoidLaunch.csproj -c Release -p:PublishProfile=FolderProfile
-```
-
-## Local data and privacy
-
-VoidLaunch stores game folders, executable choices, favorites, play history, and theme preferences locally under the current Windows user's application-data folder.
-
-VoidLaunch contains no analytics, advertisements, accounts, tracking SDKs, cryptocurrency miners, or hidden telemetry. It does not upload the game library or personal files. Its automatic network access is limited to checking and downloading public releases from this GitHub repository.
-
-## Development
-
-Requirements:
-
-- Windows 10 or Windows 11
-- Visual Studio 2022 with the .NET desktop development workload, or the .NET 8 SDK
-
-Build:
+You need Windows and either Visual Studio 2022 with the .NET desktop workload or the .NET 8 SDK.
 
 ```powershell
 dotnet build VoidLaunch.sln -c Release
 ```
 
-## Developer
+To make the same single-file build used by the releases:
 
-Created and maintained by [Vvoidddd](https://github.com/Vvoidddd).
+```powershell
+dotnet publish .\VoidLaunch\VoidLaunch.csproj -c Release -p:PublishProfile=FolderProfile
+```
+
+## Making a release
+
+Every push to `main` runs the release workflow. It builds one self-contained `VoidLaunch.exe`, checks the embedded version, creates a tag, and puts the EXE in a new GitHub Release.
+
+The major and minor numbers come from `<Version>` in `VoidLaunch.csproj`. The last number is the GitHub Actions run number, so a project version of `1.0.0` on run 8 becomes `1.0.8`. The workflow can also be started manually with an exact version number.
+
+## Privacy
+
+Game folders, EXE choices, favorites, history, and theme settings stay in the local VoidLaunch app-data folder. There are no ads, accounts, analytics, miners, tracking SDKs, or hidden telemetry. The only automatic internet access is the update check against this GitHub repository.
 
 ## License
 
-The source is publicly available for inspection and development. Add a formal `LICENSE` file before accepting outside contributions or redistributing modified builds under explicit terms.
+The source is public so people can inspect it, use it, and change their own copy. You cannot reupload, mirror, sell, repackage, or distribute VoidLaunch or a modified version of it. Read the full [VoidLaunch Source-Available License](LICENSE) before using the code.
+
+Made by [Vvoidddd](https://github.com/Vvoidddd).

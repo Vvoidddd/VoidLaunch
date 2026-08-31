@@ -929,7 +929,7 @@
                             <WrapPanel HorizontalAlignment="Center">
                                 <Button Margin="0,0,8,8" Content="Open developer GitHub" Click="OpenDeveloperGitHub_Click"
                                         Style="{StaticResource PrimaryButton}" />
-                                <Button Margin="0,0,0,8" Content="Open source repository" Click="OpenRepository_Click"
+                                <Button Margin="0,0,0,8" Content="View source on GitHub" Click="OpenRepository_Click"
                                         Style="{StaticResource SecondaryButton}" />
                             </WrapPanel>
                         </StackPanel>
@@ -1043,7 +1043,7 @@
                             </Border>
                             <Border Style="{StaticResource InfoCard}">
                                 <StackPanel>
-                                    <TextBlock FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}" Text="Open source" />
+                                    <TextBlock FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}" Text="Source available" />
                                     <TextBlock Margin="0,9,0,14" TextWrapping="Wrap" LineHeight="21"
                                                Foreground="{StaticResource SecondaryBrush}"
                                                Text="The complete source code is public so anyone can inspect how scanning, launching, storage, themes, and updates work." />
