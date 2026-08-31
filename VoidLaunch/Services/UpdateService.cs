@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -85,6 +86,82 @@ namespace VoidLaunch.Services
             catch (Exception ex)
             {
                 return UpdateCheckResult.Failed($"Update check failed: {ex.Message}");
+            }
+        }
+
+        public async Task<ReleaseHistoryResult> GetReleaseHistoryAsync(
+            CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                const int pageSize = 100;
+                var releases = new List<GitHubRelease>();
+
+                for (int page = 1; ; page++)
+                {
+                    string url = $"{AppInfo.ReleasesApiUrl}?per_page={pageSize}&page={page}";
+                    using HttpResponseMessage response = await Client.GetAsync(url, cancellationToken);
+
+                    if (response.StatusCode == HttpStatusCode.NotFound)
+                        return ReleaseHistoryResult.Failed("The GitHub releases page could not be found.");
+
+                    response.EnsureSuccessStatusCode();
+
+                    await using Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+                    GitHubRelease[] pageReleases =
+                        await JsonSerializer.DeserializeAsync<GitHubRelease[]>(
+                            stream,
+                            cancellationToken: cancellationToken)
+                        ?? Array.Empty<GitHubRelease>();
+
+                    releases.AddRange(pageReleases.Where(release => !release.Draft));
+
+                    if (pageReleases.Length < pageSize)
+                        break;
+                }
+
+                List<ReleaseHistoryItem> history = releases
+                    .Select(release =>
+                    {
+                        _ = TryParseReleaseVersion(release.TagName, out Version? version);
+                        GitHubAsset? asset = release.Assets.FirstOrDefault(
+                            item => string.Equals(
+                                item.Name,
+                                AppInfo.ReleaseAssetName,
+                                StringComparison.OrdinalIgnoreCase));
+
+                        return new ReleaseHistoryItem(
+                            version,
+                            release.TagName,
+                            string.IsNullOrWhiteSpace(release.Name)
+                                ? release.TagName
+                                : release.Name,
+                            release.HtmlUrl,
+                            release.Body,
+                            release.PublishedAt,
+                            release.Prerelease,
+                            asset is null
+                                ? null
+                                : new UpdateAsset(
+                                    asset.BrowserDownloadUrl,
+                                    asset.Digest,
+                                    asset.Size),
+                            asset?.DownloadCount ?? 0);
+                    })
+                    .OrderByDescending(release => release.Version ?? new Version(0, 0, 0, 0))
+                    .ThenByDescending(release => release.PublishedAt)
+                    .ToList();
+
+                return ReleaseHistoryResult.Success(history);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                return ReleaseHistoryResult.Failed(
+                    $"Could not load the version history: {ex.Message}");
             }
         }
 
@@ -306,11 +383,26 @@ namespace VoidLaunch.Services
 
         private sealed class GitHubRelease
         {
+            [JsonPropertyName("name")]
+            public string Name { get; set; } = string.Empty;
+
             [JsonPropertyName("tag_name")]
             public string TagName { get; set; } = string.Empty;
 
             [JsonPropertyName("html_url")]
             public string HtmlUrl { get; set; } = string.Empty;
+
+            [JsonPropertyName("body")]
+            public string Body { get; set; } = string.Empty;
+
+            [JsonPropertyName("draft")]
+            public bool Draft { get; set; }
+
+            [JsonPropertyName("prerelease")]
+            public bool Prerelease { get; set; }
+
+            [JsonPropertyName("published_at")]
+            public DateTimeOffset? PublishedAt { get; set; }
 
             [JsonPropertyName("assets")]
             public GitHubAsset[] Assets { get; set; } = Array.Empty<GitHubAsset>();
@@ -329,10 +421,36 @@ namespace VoidLaunch.Services
 
             [JsonPropertyName("size")]
             public long Size { get; set; }
+
+            [JsonPropertyName("download_count")]
+            public int DownloadCount { get; set; }
         }
     }
 
     public sealed record UpdateAsset(string DownloadUrl, string Digest, long Size);
+
+    public sealed record ReleaseHistoryItem(
+        Version? Version,
+        string TagName,
+        string Name,
+        string ReleaseUrl,
+        string Notes,
+        DateTimeOffset? PublishedAt,
+        bool IsPrerelease,
+        UpdateAsset? Asset,
+        int DownloadCount);
+
+    public sealed record ReleaseHistoryResult(
+        bool Succeeded,
+        IReadOnlyList<ReleaseHistoryItem> Releases,
+        string ErrorMessage)
+    {
+        public static ReleaseHistoryResult Success(IReadOnlyList<ReleaseHistoryItem> releases) =>
+            new(true, releases, string.Empty);
+
+        public static ReleaseHistoryResult Failed(string message) =>
+            new(false, Array.Empty<ReleaseHistoryItem>(), message);
+    }
 
     public sealed record UpdateCheckResult(
         bool CheckSucceeded,

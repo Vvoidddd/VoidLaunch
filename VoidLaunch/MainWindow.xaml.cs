@@ -19,6 +19,7 @@ using Button = System.Windows.Controls.Button;
 using Cursors = System.Windows.Input.Cursors;
 using HorizontalAlignment = System.Windows.HorizontalAlignment;
 using Image = System.Windows.Controls.Image;
+using SaveFileDialog = Microsoft.Win32.SaveFileDialog;
 
 namespace VoidLaunch
 {
@@ -35,6 +36,9 @@ namespace VoidLaunch
         private bool _showRecent;
 
         private bool _isRefreshing;
+        private bool _isLoadingVersions;
+        private bool _isDownloadingVersion;
+        private bool _releaseHistoryLoaded;
         private GameEntry? _selectedGame;
         private UpdateCheckResult? _latestUpdate;
 
@@ -1561,6 +1565,7 @@ namespace VoidLaunch
             SettingsPage.Visibility = page == SettingsPage ? Visibility.Visible : Visibility.Collapsed;
             DeveloperPage.Visibility = page == DeveloperPage ? Visibility.Visible : Visibility.Collapsed;
             AboutPage.Visibility = page == AboutPage ? Visibility.Visible : Visibility.Collapsed;
+            VersionsPage.Visibility = page == VersionsPage ? Visibility.Visible : Visibility.Collapsed;
             PrivacyPage.Visibility = page == PrivacyPage ? Visibility.Visible : Visibility.Collapsed;
         }
 
@@ -1589,6 +1594,332 @@ namespace VoidLaunch
         private void Privacy_Click(object sender, RoutedEventArgs e)
         {
             ShowPage(PrivacyPage);
+        }
+
+        private async void Versions_Click(object sender, RoutedEventArgs e)
+        {
+            ShowPage(VersionsPage);
+            await LoadReleaseHistoryAsync(false);
+        }
+
+        private async void RefreshVersions_Click(object sender, RoutedEventArgs e)
+        {
+            await LoadReleaseHistoryAsync(true);
+        }
+
+        private async Task LoadReleaseHistoryAsync(bool forceRefresh)
+        {
+            if (_isLoadingVersions || _isDownloadingVersion || (_releaseHistoryLoaded && !forceRefresh))
+                return;
+
+            _isLoadingVersions = true;
+            RefreshVersionsButton.IsEnabled = false;
+            VersionsProgressBar.IsIndeterminate = true;
+            VersionsProgressBar.Visibility = Visibility.Visible;
+            VersionsStatusText.Foreground = FindBrush("SecondaryBrush");
+            VersionsStatusText.Text = "Loading releases from GitHub…";
+
+            try
+            {
+                ReleaseHistoryResult result = await _updateService.GetReleaseHistoryAsync();
+                VersionsList.Children.Clear();
+
+                if (!result.Succeeded)
+                {
+                    _releaseHistoryLoaded = false;
+                    VersionsStatusText.Foreground = FindBrush("ErrorBrush");
+                    VersionsStatusText.Text = result.ErrorMessage;
+                    return;
+                }
+
+                _releaseHistoryLoaded = true;
+                VersionsStatusText.Text = result.Releases.Count == 0
+                    ? "GitHub does not have any published VoidLaunch releases yet."
+                    : $"{result.Releases.Count} version{(result.Releases.Count == 1 ? string.Empty : "s")} found · installed {AppInfo.DisplayVersion}";
+
+                ReleaseHistoryItem? latestStable = result.Releases
+                    .FirstOrDefault(release => !release.IsPrerelease);
+
+                foreach (ReleaseHistoryItem release in result.Releases)
+                {
+                    bool isLatest = latestStable != null &&
+                        string.Equals(
+                            release.TagName,
+                            latestStable.TagName,
+                            StringComparison.OrdinalIgnoreCase);
+
+                    VersionsList.Children.Add(BuildVersionCard(release, isLatest));
+                }
+            }
+            finally
+            {
+                _isLoadingVersions = false;
+                RefreshVersionsButton.IsEnabled = true;
+                VersionsProgressBar.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private Border BuildVersionCard(ReleaseHistoryItem release, bool isLatest)
+        {
+            var card = new Border
+            {
+                Style = (Style)FindResource("InfoCard"),
+                Margin = new Thickness(0, 0, 0, 10)
+            };
+
+            var content = new StackPanel();
+            var titleRow = new Grid();
+            titleRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            titleRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var title = new TextBlock
+            {
+                Text = release.Name,
+                FontSize = 18,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = FindBrush("TextBrush"),
+                VerticalAlignment = VerticalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis
+            };
+            titleRow.Children.Add(title);
+
+            var badges = new WrapPanel
+            {
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Margin = new Thickness(12, 0, 0, 0)
+            };
+
+            if (IsInstalledVersion(release.Version))
+                badges.Children.Add(CreateVersionBadge("INSTALLED", FindBrush("CardHoverBrush")));
+
+            if (isLatest)
+                badges.Children.Add(CreateVersionBadge("LATEST", FindBrush("AccentBrush")));
+
+            if (release.IsPrerelease)
+                badges.Children.Add(CreateVersionBadge("PRERELEASE", FindBrush("ErrorBrush")));
+
+            Grid.SetColumn(badges, 1);
+            titleRow.Children.Add(badges);
+            content.Children.Add(titleRow);
+
+            string published = release.PublishedAt?.ToLocalTime().ToString("MMM d, yyyy · h:mm tt")
+                ?? "Unknown publish date";
+            string assetDetails = release.Asset is null
+                ? "No VoidLaunch.exe attached"
+                : $"{FormatBytes(release.Asset.Size)} · {release.DownloadCount:N0} download{(release.DownloadCount == 1 ? string.Empty : "s")}";
+
+            content.Children.Add(new TextBlock
+            {
+                Text = $"{release.TagName} · {published} · {assetDetails}",
+                Margin = new Thickness(0, 6, 0, 0),
+                Foreground = FindBrush("SecondaryBrush"),
+                TextWrapping = TextWrapping.Wrap
+            });
+
+            string notes = FormatReleaseNotes(release.Notes);
+            if (!string.IsNullOrWhiteSpace(notes))
+            {
+                content.Children.Add(new TextBlock
+                {
+                    Text = notes,
+                    Margin = new Thickness(0, 12, 0, 0),
+                    MaxHeight = 95,
+                    LineHeight = 20,
+                    TextWrapping = TextWrapping.Wrap,
+                    TextTrimming = TextTrimming.CharacterEllipsis,
+                    Foreground = FindBrush("SecondaryBrush")
+                });
+            }
+
+            var actions = new WrapPanel { Margin = new Thickness(0, 14, 0, 0) };
+            var downloadButton = new Button
+            {
+                Content = release.Asset is null ? "EXE unavailable" : "Download EXE",
+                Tag = release,
+                IsEnabled = release.Asset != null,
+                Margin = new Thickness(0, 0, 8, 0),
+                Style = (Style)FindResource("PrimaryButton")
+            };
+            downloadButton.Click += DownloadRelease_Click;
+            actions.Children.Add(downloadButton);
+
+            var releaseButton = new Button
+            {
+                Content = "Open release on GitHub",
+                Tag = release,
+                Style = (Style)FindResource("SecondaryButton")
+            };
+            releaseButton.Click += OpenRelease_Click;
+            actions.Children.Add(releaseButton);
+
+            content.Children.Add(actions);
+            card.Child = content;
+            return card;
+        }
+
+        private Border CreateVersionBadge(string text, Brush background)
+        {
+            return new Border
+            {
+                Background = background,
+                CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(8, 4, 8, 4),
+                Margin = new Thickness(5, 0, 0, 0),
+                Child = new TextBlock
+                {
+                    Text = text,
+                    FontSize = 9,
+                    FontWeight = FontWeights.Bold,
+                    Foreground = FindBrush("TextBrush")
+                }
+            };
+        }
+
+        private async void DownloadRelease_Click(object sender, RoutedEventArgs e)
+        {
+            if (_isDownloadingVersion ||
+                sender is not Button button ||
+                button.Tag is not ReleaseHistoryItem release ||
+                release.Asset is not UpdateAsset asset)
+            {
+                return;
+            }
+
+            string versionName = release.TagName.Trim().TrimStart('v', 'V');
+            var dialog = new SaveFileDialog
+            {
+                Title = $"Download VoidLaunch {versionName}",
+                FileName = $"VoidLaunch-{versionName}.exe",
+                DefaultExt = ".exe",
+                AddExtension = true,
+                Filter = "Windows executable (*.exe)|*.exe",
+                OverwritePrompt = true
+            };
+
+            string downloadsFolder = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                "Downloads");
+            if (Directory.Exists(downloadsFolder))
+                dialog.InitialDirectory = downloadsFolder;
+
+            if (dialog.ShowDialog(this) != true)
+                return;
+
+            string destination = Path.GetFullPath(dialog.FileName);
+            string? currentExecutable = Environment.ProcessPath;
+            if (!string.IsNullOrWhiteSpace(currentExecutable) &&
+                string.Equals(
+                    destination,
+                    Path.GetFullPath(currentExecutable),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                VersionsStatusText.Foreground = FindBrush("ErrorBrush");
+                VersionsStatusText.Text = "Choose a different file name so the running launcher is not overwritten.";
+                return;
+            }
+
+            _isDownloadingVersion = true;
+            button.IsEnabled = false;
+            RefreshVersionsButton.IsEnabled = false;
+            VersionsProgressBar.IsIndeterminate = false;
+            VersionsProgressBar.Value = 0;
+            VersionsProgressBar.Visibility = Visibility.Visible;
+            VersionsStatusText.Foreground = FindBrush("SecondaryBrush");
+            VersionsStatusText.Text = $"Downloading and verifying VoidLaunch {versionName}… 0%";
+            string? temporaryPath = null;
+
+            try
+            {
+                var progress = new Progress<int>(value =>
+                {
+                    VersionsProgressBar.Value = value;
+                    VersionsStatusText.Text =
+                        $"Downloading and verifying VoidLaunch {versionName}… {value}%";
+                });
+
+                temporaryPath = await _updateService.DownloadAsync(asset, progress);
+                File.Copy(temporaryPath, destination, true);
+                VersionsStatusText.Text = $"Downloaded VoidLaunch {versionName} to {destination}";
+            }
+            catch (Exception ex)
+            {
+                VersionsStatusText.Foreground = FindBrush("ErrorBrush");
+                VersionsStatusText.Text = $"Download failed: {ex.Message}";
+            }
+            finally
+            {
+                if (!string.IsNullOrWhiteSpace(temporaryPath))
+                {
+                    try
+                    {
+                        string? temporaryDirectory = Path.GetDirectoryName(temporaryPath);
+                        if (!string.IsNullOrWhiteSpace(temporaryDirectory))
+                            Directory.Delete(temporaryDirectory, true);
+                    }
+                    catch
+                    {
+                        // Best-effort cleanup only.
+                    }
+                }
+
+                _isDownloadingVersion = false;
+                button.IsEnabled = true;
+                RefreshVersionsButton.IsEnabled = true;
+                VersionsProgressBar.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private void OpenRelease_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button { Tag: ReleaseHistoryItem release })
+                OpenWebPage(release.ReleaseUrl);
+        }
+
+        private static bool IsInstalledVersion(Version? version)
+        {
+            if (version is null)
+                return false;
+
+            Version installed = AppInfo.CurrentVersion;
+            return version.Major == installed.Major &&
+                version.Minor == installed.Minor &&
+                Math.Max(version.Build, 0) == Math.Max(installed.Build, 0);
+        }
+
+        private static string FormatBytes(long bytes)
+        {
+            if (bytes <= 0)
+                return "Unknown size";
+
+            string[] units = { "B", "KB", "MB", "GB" };
+            double value = bytes;
+            int unit = 0;
+
+            while (value >= 1024 && unit < units.Length - 1)
+            {
+                value /= 1024;
+                unit++;
+            }
+
+            return $"{value:0.#} {units[unit]}";
+        }
+
+        private static string FormatReleaseNotes(string notes)
+        {
+            if (string.IsNullOrWhiteSpace(notes))
+                return string.Empty;
+
+            string cleaned = string.Join(
+                Environment.NewLine,
+                notes.Replace("\r", string.Empty, StringComparison.Ordinal)
+                    .Split('\n')
+                    .Select(line => line.Trim().TrimStart('#').Trim())
+                    .Where(line => !string.IsNullOrWhiteSpace(line)));
+
+            const int maximumLength = 700;
+            return cleaned.Length <= maximumLength
+                ? cleaned
+                : $"{cleaned[..maximumLength].TrimEnd()}…";
         }
 
         private void PopulateAboutPage()

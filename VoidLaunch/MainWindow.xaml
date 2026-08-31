@@ -661,6 +661,13 @@
                             <TextBlock Margin="25,24,0,8" FontSize="10" FontWeight="Bold"
                                        Foreground="{StaticResource SecondaryBrush}" Text="INFORMATION" />
 
+                            <Button Click="Versions_Click" Style="{StaticResource SidebarButton}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Width="28" FontSize="16" Text="↺" />
+                                    <TextBlock VerticalAlignment="Center" Text="Versions" />
+                                </StackPanel>
+                            </Button>
+
                             <Button Click="Developer_Click" Style="{StaticResource SidebarButton}">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Width="28" FontSize="16" Text="&lt;/&gt;" />
@@ -1000,6 +1007,55 @@
                             </Border>
                         </StackPanel>
                     </ScrollViewer>
+                </Grid>
+
+                <!-- VERSION HISTORY -->
+                <Grid x:Name="VersionsPage" Grid.Column="1" Margin="28" Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="55" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0">
+                        <Button HorizontalAlignment="Left" Content="←  Library" Click="BackToLibrary_Click"
+                                Style="{StaticResource SecondaryButton}" />
+                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="25"
+                                   FontWeight="SemiBold" Foreground="{StaticResource TextBrush}" Text="Versions" />
+                        <Button x:Name="RefreshVersionsButton" HorizontalAlignment="Right" Content="Refresh"
+                                Click="RefreshVersions_Click" Style="{StaticResource SecondaryButton}" />
+                    </Grid>
+
+                    <Grid Grid.Row="1" Margin="0,8,0,0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <Border Style="{StaticResource InfoCard}" Margin="0,0,0,10">
+                            <StackPanel>
+                                <TextBlock FontSize="17" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"
+                                           Text="Download any VoidLaunch release" />
+                                <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" LineHeight="20"
+                                           Foreground="{StaticResource SecondaryBrush}"
+                                           Text="Older builds are downloaded as separate EXE files. They are never installed over your current version automatically." />
+                            </StackPanel>
+                        </Border>
+
+                        <StackPanel Grid.Row="1" Margin="2,0,2,10">
+                            <TextBlock x:Name="VersionsStatusText" TextWrapping="Wrap"
+                                       Foreground="{StaticResource SecondaryBrush}"
+                                       Text="Open this page to load releases from GitHub." />
+                            <ProgressBar x:Name="VersionsProgressBar" Height="5" Margin="0,8,0,0"
+                                         IsIndeterminate="True" Visibility="Collapsed"
+                                         Style="{StaticResource VoidProgressBar}" />
+                        </StackPanel>
+
+                        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel x:Name="VersionsList" Margin="0,0,12,0" />
+                        </ScrollViewer>
+                    </Grid>
                 </Grid>
 
                 <!-- PRIVACY -->

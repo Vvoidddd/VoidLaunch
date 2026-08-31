@@ -25,6 +25,7 @@ There is no installer and you do not need to install .NET. Put the EXE wherever 
 - Show game output in a log window that can dock to the side of the launcher.
 - Change the whole launcher with built-in themes or custom theme colors.
 - Check GitHub for updates and install a newer release.
+- Browse every GitHub release and download an older version without replacing the installed one.
 
 It is still a work in progress, so the scanner will not guess every game perfectly. That is why the manual EXE picker is there.
 
