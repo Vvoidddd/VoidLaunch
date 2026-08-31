@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <AssemblyName>VoidLaunch</AssemblyName>
+    <Product>VoidLaunch</Product>
+    <Authors>Vvoidddd</Authors>
+    <Company>Vvoidddd</Company>
+    <Description>Open-source Windows game library and launcher.</Description>
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <InformationalVersion>1.0.0</InformationalVersion>
+    <RepositoryUrl>https://github.com/Vvoidddd/VoidLaunch</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <ApplicationIcon>457bd043-4f2c-4db5-96fa-1fb1b90d9fb2-removebg-preview.ico</ApplicationIcon>
+
+    <!-- GitHub/desktop release: one x64 EXE with the .NET runtime included. -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <PublishTrimmed>false</PublishTrimmed>
+    <DebugSymbols>false</DebugSymbols>
+    <DebugType>None</DebugType>
+    <PublishDir>C:\Users\tolik\OneDrive\Desktop\BUILDS\</PublishDir>
+  </PropertyGroup>
+</Project>

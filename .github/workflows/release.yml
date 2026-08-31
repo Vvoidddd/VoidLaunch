@@ -1,0 +1,45 @@
+name: Build Release
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  windows-release:
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Publish one self-contained EXE
+        shell: pwsh
+        run: dotnet publish .\VoidLaunch\VoidLaunch.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugSymbols=false -p:DebugType=None -o .\release
+
+      - name: Verify release contains one file
+        shell: pwsh
+        run: |
+          $files = @(Get-ChildItem .\release -File)
+          if ($files.Count -ne 1 -or $files[0].Name -ne 'VoidLaunch.exe') {
+            throw "Expected only release/VoidLaunch.exe, found: $($files.Name -join ', ')"
+          }
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: VoidLaunch-${{ github.sha }}
+          path: release/VoidLaunch.exe
+
+      - name: Attach EXE to GitHub Release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" .\release\VoidLaunch.exe --clobber
