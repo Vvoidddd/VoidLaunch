@@ -446,6 +446,7 @@
 
     </Window.Resources>
 
+    <Grid>
 
     <Border
         x:Name="MainWindowShell"
@@ -669,6 +670,13 @@
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Width="28" FontSize="16" Text="↺" />
                                     <TextBlock VerticalAlignment="Center" Text="Versions" />
+                                </StackPanel>
+                            </Button>
+
+                            <Button Click="ComingSoon_Click" Style="{StaticResource SidebarButton}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Width="28" FontSize="16" Text="◇" />
+                                    <TextBlock VerticalAlignment="Center" Text="Coming Soon" />
                                 </StackPanel>
                             </Button>
 
@@ -1062,6 +1070,69 @@
                     </Grid>
                 </Grid>
 
+                <!-- COMING SOON -->
+                <Grid x:Name="ComingSoonPage" Grid.Column="1" Margin="28" Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="55" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0">
+                        <Button HorizontalAlignment="Left" Content="←  Library" Click="BackToLibrary_Click"
+                                Style="{StaticResource SecondaryButton}" />
+                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="25"
+                                   FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" Text="Coming Soon" />
+                    </Grid>
+
+                    <ScrollViewer Grid.Row="1" Margin="0,8,0,0" VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Margin="0,0,12,0">
+                            <Border Style="{StaticResource InfoCard}">
+                                <StackPanel HorizontalAlignment="Center" MaxWidth="590">
+                                    <Border Width="72" Height="72" Background="{DynamicResource AccentBrush}"
+                                            CornerRadius="24">
+                                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   FontSize="31" FontWeight="Bold"
+                                                   Foreground="{DynamicResource TextBrush}" Text="◎" />
+                                    </Border>
+
+                                    <TextBlock Margin="0,20,0,0" HorizontalAlignment="Center" FontSize="25"
+                                               FontWeight="Bold" Foreground="{DynamicResource TextBrush}"
+                                               Text="VoidLaunch on the web" />
+                                    <TextBlock Margin="0,10,0,0" TextAlignment="Center" TextWrapping="Wrap"
+                                               LineHeight="22" Foreground="{DynamicResource SecondaryBrush}"
+                                               Text="I plan on getting a domain with VoidLaunch in the name, but I have not decided whether it should be .xyz, .lol, or something else yet." />
+
+                                    <WrapPanel Margin="0,20,0,20" HorizontalAlignment="Center">
+                                        <Border Margin="4" Padding="14,8" Background="{DynamicResource CardHoverBrush}"
+                                                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="12">
+                                            <TextBlock FontSize="15" FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource AccentBrush}" Text=".xyz" />
+                                        </Border>
+                                        <Border Margin="4" Padding="14,8" Background="{DynamicResource CardHoverBrush}"
+                                                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="12">
+                                            <TextBlock FontSize="15" FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource AccentBrush}" Text=".lol" />
+                                        </Border>
+                                        <Border Margin="4" Padding="14,8" Background="{DynamicResource CardHoverBrush}"
+                                                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="12">
+                                            <TextBlock FontSize="15" FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource AccentBrush}" Text="maybe another one" />
+                                        </Border>
+                                    </WrapPanel>
+
+                                    <TextBlock TextAlignment="Center" TextWrapping="Wrap" LineHeight="21"
+                                               Foreground="{DynamicResource SecondaryBrush}"
+                                               Text="The future site will become the main place for downloads and other VoidLaunch stuff. Until a domain is announced here and on the official GitHub repository, only trust downloads from GitHub Releases." />
+                                    <Button Margin="0,20,0,0" HorizontalAlignment="Center"
+                                            Content="Open current GitHub downloads" Click="OpenReleases_Click"
+                                            Style="{StaticResource PrimaryButton}" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+
                 <!-- PRIVACY -->
                 <Grid x:Name="PrivacyPage" Grid.Column="1" Margin="28" Visibility="Collapsed">
                     <Grid.RowDefinitions>
@@ -1120,5 +1191,65 @@
         </Grid>
 
     </Border>
+
+    <!-- In-app update notification. This stays sharp while MainWindowShell is blurred. -->
+    <Border x:Name="UpdateNotificationOverlay" Panel.ZIndex="100"
+            Background="#B3000000" CornerRadius="16"
+            Visibility="Collapsed" Opacity="0">
+        <Grid>
+            <Border x:Name="UpdateNotificationCard" Width="470" Padding="28"
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Background="{DynamicResource CardBrush}"
+                    BorderBrush="{DynamicResource AccentBrush}" BorderThickness="1"
+                    CornerRadius="20" RenderTransformOrigin="0.5,0.5">
+                <Border.RenderTransform>
+                    <ScaleTransform ScaleX="1" ScaleY="1" />
+                </Border.RenderTransform>
+
+                <StackPanel>
+                    <Border Width="58" Height="58" HorizontalAlignment="Center"
+                            Background="{DynamicResource AccentBrush}" CornerRadius="20">
+                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   FontSize="27" FontWeight="Bold"
+                                   Foreground="{DynamicResource TextBrush}" Text="↓" />
+                    </Border>
+
+                    <TextBlock Margin="0,18,0,0" HorizontalAlignment="Center"
+                               FontSize="23" FontWeight="Bold"
+                               Foreground="{DynamicResource TextBrush}"
+                               Text="A VoidLaunch update is ready" />
+                    <TextBlock x:Name="UpdateNotificationVersionText" Margin="0,8,0,0"
+                               HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
+                               Foreground="{DynamicResource AccentBrush}" />
+                    <TextBlock Margin="0,13,0,0" TextAlignment="Center" TextWrapping="Wrap"
+                               LineHeight="21" Foreground="{DynamicResource SecondaryBrush}"
+                               Text="The update comes from the official GitHub release and will be SHA-256 verified before VoidLaunch replaces the current EXE and restarts." />
+
+                    <ProgressBar x:Name="UpdateNotificationProgressBar" Height="7" Margin="0,18,0,0"
+                                 Minimum="0" Maximum="100" Visibility="Collapsed"
+                                 Style="{StaticResource VoidProgressBar}" />
+                    <TextBlock x:Name="UpdateNotificationStatusText" Margin="0,9,0,0"
+                               HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
+                               Foreground="{DynamicResource SecondaryBrush}" />
+
+                    <Grid Margin="0,22,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="10" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Button x:Name="UpdateNotificationLaterButton" Grid.Column="0"
+                                Content="Later" Click="UpdateNotificationLater_Click"
+                                Style="{StaticResource SecondaryButton}" />
+                        <Button x:Name="UpdateNotificationNowButton" Grid.Column="2"
+                                Content="Update now" Click="UpdateNotificationNow_Click"
+                                Style="{StaticResource PrimaryButton}" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+
+    </Grid>
 
 </Window>

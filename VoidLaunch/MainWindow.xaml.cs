@@ -9,6 +9,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using Microsoft.Win32;
 using VoidLaunch.Models;
@@ -38,6 +39,7 @@ namespace VoidLaunch
         private bool _isRefreshing;
         private bool _isLoadingVersions;
         private bool _isDownloadingVersion;
+        private bool _isInstallingUpdate;
         private bool _releaseHistoryLoaded;
         private GameEntry? _selectedGame;
         private UpdateCheckResult? _latestUpdate;
@@ -63,8 +65,9 @@ namespace VoidLaunch
             object sender,
             RoutedEventArgs e)
         {
+            Task updateCheck = CheckForUpdatesAsync();
             await LoadLibraryAsync();
-            await CheckForUpdatesAsync();
+            await updateCheck;
         }
 
 
@@ -1566,6 +1569,7 @@ namespace VoidLaunch
             DeveloperPage.Visibility = page == DeveloperPage ? Visibility.Visible : Visibility.Collapsed;
             AboutPage.Visibility = page == AboutPage ? Visibility.Visible : Visibility.Collapsed;
             VersionsPage.Visibility = page == VersionsPage ? Visibility.Visible : Visibility.Collapsed;
+            ComingSoonPage.Visibility = page == ComingSoonPage ? Visibility.Visible : Visibility.Collapsed;
             PrivacyPage.Visibility = page == PrivacyPage ? Visibility.Visible : Visibility.Collapsed;
         }
 
@@ -1577,7 +1581,7 @@ namespace VoidLaunch
 
 
         // ============================================================
-        // DEVELOPER / ABOUT / PRIVACY / UPDATES
+        // DEVELOPER / ABOUT / PRIVACY / UPDATES / COMING SOON
         // ============================================================
 
         private void Developer_Click(object sender, RoutedEventArgs e)
@@ -1594,6 +1598,11 @@ namespace VoidLaunch
         private void Privacy_Click(object sender, RoutedEventArgs e)
         {
             ShowPage(PrivacyPage);
+        }
+
+        private void ComingSoon_Click(object sender, RoutedEventArgs e)
+        {
+            ShowPage(ComingSoonPage);
         }
 
         private async void Versions_Click(object sender, RoutedEventArgs e)
@@ -1940,6 +1949,7 @@ namespace VoidLaunch
         private async Task CheckForUpdatesAsync()
         {
             CheckUpdatesButton.IsEnabled = false;
+            AboutUpdateStatusText.Foreground = FindBrush("SecondaryBrush");
             AboutUpdateStatusText.Text = "Checking GitHub Releases…";
 
             try
@@ -1950,6 +1960,9 @@ namespace VoidLaunch
                     _latestUpdate.UpdateAvailable && _latestUpdate.Asset != null
                         ? Visibility.Visible
                         : Visibility.Collapsed;
+
+                if (_latestUpdate.UpdateAvailable && _latestUpdate.Asset != null)
+                    ShowUpdateNotification(_latestUpdate);
             }
             finally
             {
@@ -1964,35 +1977,147 @@ namespace VoidLaunch
 
         private async void UpdateNow_Click(object sender, RoutedEventArgs e)
         {
-            if (_latestUpdate?.Asset is not UpdateAsset asset)
+            await InstallLatestUpdateAsync();
+        }
+
+        private async void UpdateNotificationNow_Click(object sender, RoutedEventArgs e)
+        {
+            await InstallLatestUpdateAsync();
+        }
+
+        private void UpdateNotificationLater_Click(object sender, RoutedEventArgs e)
+        {
+            if (_isInstallingUpdate)
                 return;
+
+            HideUpdateNotification();
+
+            if (_latestUpdate != null)
+            {
+                AboutUpdateStatusText.Foreground = FindBrush("SecondaryBrush");
+                AboutUpdateStatusText.Text =
+                    $"{_latestUpdate.Message} You can install it later from About & Health.";
+            }
+        }
+
+        private void ShowUpdateNotification(UpdateCheckResult update)
+        {
+            if (!update.UpdateAvailable || update.Asset is null || update.LatestVersion is null)
+                return;
+
+            UpdateNotificationVersionText.Text =
+                $"Version {update.LatestVersion.ToString(3)} is available · installed {AppInfo.DisplayVersion}";
+            UpdateNotificationStatusText.Foreground = FindBrush("SecondaryBrush");
+            UpdateNotificationStatusText.Text = "Choose when you want to install it.";
+            UpdateNotificationProgressBar.Value = 0;
+            UpdateNotificationProgressBar.Visibility = Visibility.Collapsed;
+            UpdateNotificationLaterButton.IsEnabled = true;
+            UpdateNotificationNowButton.IsEnabled = true;
+
+            var blur = new BlurEffect { Radius = 0 };
+            MainWindowShell.Effect = blur;
+            blur.BeginAnimation(
+                BlurEffect.RadiusProperty,
+                new DoubleAnimation(0, 10, TimeSpan.FromMilliseconds(180)));
+
+            UpdateNotificationOverlay.Visibility = Visibility.Visible;
+            UpdateNotificationOverlay.Opacity = 1;
+            UpdateNotificationOverlay.BeginAnimation(
+                OpacityProperty,
+                new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(180)));
+
+            if (UpdateNotificationCard.RenderTransform is ScaleTransform scale)
+            {
+                scale.BeginAnimation(
+                    ScaleTransform.ScaleXProperty,
+                    new DoubleAnimation(0.96, 1, TimeSpan.FromMilliseconds(180)));
+                scale.BeginAnimation(
+                    ScaleTransform.ScaleYProperty,
+                    new DoubleAnimation(0.96, 1, TimeSpan.FromMilliseconds(180)));
+            }
+
+            UpdateNotificationNowButton.Focus();
+        }
+
+        private void HideUpdateNotification()
+        {
+            var fade = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(150));
+            fade.Completed += (_, _) =>
+            {
+                UpdateNotificationOverlay.BeginAnimation(OpacityProperty, null);
+                UpdateNotificationOverlay.Opacity = 0;
+                UpdateNotificationOverlay.Visibility = Visibility.Collapsed;
+                MainWindowShell.Effect = null;
+            };
+
+            UpdateNotificationOverlay.BeginAnimation(OpacityProperty, fade);
+
+            if (MainWindowShell.Effect is BlurEffect blur)
+            {
+                blur.BeginAnimation(
+                    BlurEffect.RadiusProperty,
+                    new DoubleAnimation(blur.Radius, 0, TimeSpan.FromMilliseconds(150)));
+            }
+        }
+
+        private async Task InstallLatestUpdateAsync()
+        {
+            if (_isInstallingUpdate || _latestUpdate?.Asset is not UpdateAsset asset)
+                return;
+
+            _isInstallingUpdate = true;
 
             CheckUpdatesButton.IsEnabled = false;
             UpdateNowButton.IsEnabled = false;
+            UpdateNotificationLaterButton.IsEnabled = false;
+            UpdateNotificationNowButton.IsEnabled = false;
             UpdateProgressBar.Value = 0;
             UpdateProgressBar.Visibility = Visibility.Visible;
+            UpdateNotificationProgressBar.Value = 0;
+            UpdateNotificationProgressBar.Visibility = Visibility.Visible;
+            AboutUpdateStatusText.Foreground = FindBrush("SecondaryBrush");
             AboutUpdateStatusText.Text = "Downloading verified update…";
+            UpdateNotificationStatusText.Foreground = FindBrush("SecondaryBrush");
+            UpdateNotificationStatusText.Text = "Downloading verified update… 0%";
+
+            bool restartScheduled = false;
 
             try
             {
                 var progress = new Progress<int>(value =>
                 {
                     UpdateProgressBar.Value = value;
+                    UpdateNotificationProgressBar.Value = value;
                     AboutUpdateStatusText.Text = $"Downloading update… {value}%";
+                    UpdateNotificationStatusText.Text = $"Downloading and verifying… {value}%";
                 });
 
                 string downloadedExecutable = await _updateService.DownloadAsync(asset, progress);
                 AboutUpdateStatusText.Text = "Update verified. Restarting VoidLaunch…";
+                UpdateNotificationStatusText.Text = "Update verified. Restarting VoidLaunch…";
                 _updateService.ScheduleReplacementAndRestart(downloadedExecutable);
+                restartScheduled = true;
                 System.Windows.Application.Current.Shutdown();
             }
             catch (Exception ex)
             {
                 AboutUpdateStatusText.Text = $"Update failed: {ex.Message}";
                 AboutUpdateStatusText.Foreground = FindBrush("ErrorBrush");
-                CheckUpdatesButton.IsEnabled = true;
-                UpdateNowButton.IsEnabled = true;
-                UpdateProgressBar.Visibility = Visibility.Collapsed;
+                UpdateNotificationStatusText.Text = $"Update failed: {ex.Message}";
+                UpdateNotificationStatusText.Foreground = FindBrush("ErrorBrush");
+            }
+            finally
+            {
+                if (!restartScheduled)
+                {
+                    _isInstallingUpdate = false;
+                    CheckUpdatesButton.IsEnabled = true;
+                    UpdateNowButton.IsEnabled = true;
+                    UpdateNotificationLaterButton.IsEnabled = true;
+                    UpdateNotificationNowButton.IsEnabled = true;
+                    UpdateProgressBar.Visibility = Visibility.Collapsed;
+                    UpdateNotificationProgressBar.Visibility = Visibility.Collapsed;
+                }
             }
         }
 

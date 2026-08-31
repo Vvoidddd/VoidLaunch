@@ -25,7 +25,9 @@ There is no installer and you do not need to install .NET. Put the EXE wherever 
 - Show game output in a log window that can dock to the side of the launcher.
 - Change the whole launcher with built-in themes or custom theme colors.
 - Check GitHub for updates and install a newer release.
+- Show a themed in-app update prompt with Update now and Later choices.
 - Browse every GitHub release and download an older version without replacing the installed one.
+- Keep a Coming Soon page for the future VoidLaunch download website.
 
 It is still a work in progress, so the scanner will not guess every game perfectly. That is why the manual EXE picker is there.
 
