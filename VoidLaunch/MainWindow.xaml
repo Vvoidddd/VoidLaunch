@@ -1223,7 +1223,7 @@
                                Foreground="{DynamicResource AccentBrush}" />
                     <TextBlock Margin="0,13,0,0" TextAlignment="Center" TextWrapping="Wrap"
                                LineHeight="21" Foreground="{DynamicResource SecondaryBrush}"
-                               Text="The update comes from the official GitHub release and will be SHA-256 verified before VoidLaunch replaces the current EXE and restarts." />
+                                               Text="The update comes from the official GitHub release and will be SHA-256 verified. The old EXE is replaced by the new one at the exact same name and location, then VoidLaunch restarts." />
 
                     <ProgressBar x:Name="UpdateNotificationProgressBar" Height="7" Margin="0,18,0,0"
                                  Minimum="0" Maximum="100" Visibility="Collapsed"

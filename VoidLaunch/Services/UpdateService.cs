@@ -277,9 +277,19 @@ namespace VoidLaunch.Services
 
                 $ErrorActionPreference = 'Stop'
                 $backupPath = $CurrentPath + '.previous'
+                $stagedPath = $CurrentPath + '.updating'
+                $restartStarted = $false
 
                 try {
                     Wait-Process -Id $TargetProcessId -Timeout 60 -ErrorAction SilentlyContinue
+
+                    if (Test-Path -LiteralPath $stagedPath) {
+                        Remove-Item -LiteralPath $stagedPath -Force
+                    }
+
+                    # Stage the verified download beside the running EXE. The final moves then
+                    # stay on the same volume and keep the app's exact filename and location.
+                    Copy-Item -LiteralPath $NewPath -Destination $stagedPath -Force
 
                     for ($attempt = 1; $attempt -le 20; $attempt++) {
                         try {
@@ -287,24 +297,78 @@ namespace VoidLaunch.Services
                                 Remove-Item -LiteralPath $backupPath -Force
                             }
 
-                            Copy-Item -LiteralPath $CurrentPath -Destination $backupPath -Force
-                            Copy-Item -LiteralPath $NewPath -Destination $CurrentPath -Force
-                            Start-Process -FilePath $CurrentPath -WorkingDirectory (Split-Path -Parent $CurrentPath)
-                            Remove-Item -LiteralPath $backupPath -Force -ErrorAction SilentlyContinue
+                            # Move the old EXE out of the way, then put the new EXE at the exact
+                            # path the user launched. The old file is deleted after restart.
+                            Move-Item -LiteralPath $CurrentPath -Destination $backupPath -Force
+                            Move-Item -LiteralPath $stagedPath -Destination $CurrentPath -Force
                             break
                         }
                         catch {
-                            if ($attempt -eq 20) {
-                                if (Test-Path -LiteralPath $backupPath) {
-                                    Copy-Item -LiteralPath $backupPath -Destination $CurrentPath -Force
+                            if (Test-Path -LiteralPath $backupPath) {
+                                if (Test-Path -LiteralPath $CurrentPath) {
+                                    Remove-Item -LiteralPath $CurrentPath -Force -ErrorAction SilentlyContinue
                                 }
+
+                                Move-Item -LiteralPath $backupPath -Destination $CurrentPath -Force
+                            }
+
+                            if ($attempt -eq 20) {
                                 throw
                             }
+
+                            if (-not (Test-Path -LiteralPath $stagedPath)) {
+                                Copy-Item -LiteralPath $NewPath -Destination $stagedPath -Force
+                            }
+
                             Start-Sleep -Milliseconds 500
                         }
                     }
+
+                    try {
+                        Start-Process -FilePath $CurrentPath -WorkingDirectory (Split-Path -Parent $CurrentPath)
+                        $restartStarted = $true
+                    }
+                    catch {
+                        if (Test-Path -LiteralPath $backupPath) {
+                            if (Test-Path -LiteralPath $CurrentPath) {
+                                Remove-Item -LiteralPath $CurrentPath -Force
+                            }
+
+                            Move-Item -LiteralPath $backupPath -Destination $CurrentPath -Force
+                        }
+
+                        throw
+                    }
+
+                    # Once the replacement has launched, remove the old executable. Retry briefly
+                    # in case antivirus or indexing still has a short-lived handle on the file.
+                    for ($cleanupAttempt = 1; $cleanupAttempt -le 10; $cleanupAttempt++) {
+                        Remove-Item -LiteralPath $backupPath -Force -ErrorAction SilentlyContinue
+                        if (-not (Test-Path -LiteralPath $backupPath)) {
+                            break
+                        }
+
+                        Start-Sleep -Milliseconds 250
+                    }
+                }
+                catch {
+                    if (-not $restartStarted -and (Test-Path -LiteralPath $backupPath)) {
+                        try {
+                            if (Test-Path -LiteralPath $CurrentPath) {
+                                Remove-Item -LiteralPath $CurrentPath -Force
+                            }
+
+                            Move-Item -LiteralPath $backupPath -Destination $CurrentPath -Force
+                        }
+                        catch {
+                            # Keep the backup if Windows temporarily prevents rollback.
+                        }
+                    }
+
+                    throw
                 }
                 finally {
+                    Remove-Item -LiteralPath $stagedPath -Force -ErrorAction SilentlyContinue
                     Remove-Item -LiteralPath $NewPath -Force -ErrorAction SilentlyContinue
                     Remove-Item -LiteralPath $ScriptPath -Force -ErrorAction SilentlyContinue
                 }

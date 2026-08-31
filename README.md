@@ -33,7 +33,7 @@ It is still a work in progress, so the scanner will not guess every game perfect
 
 ## Updates
 
-VoidLaunch checks the releases from this repository. Before replacing itself, it makes sure the download is named `VoidLaunch.exe` and that its SHA-256 hash matches the digest GitHub published for it.
+VoidLaunch checks the releases from this repository. Before replacing itself, it makes sure the download is named `VoidLaunch.exe` and that its SHA-256 hash matches the digest GitHub published for it. When an update is installed, the old EXE is replaced at its exact current name and location, so an EXE running from the Desktop stays on the Desktop. A temporary backup is restored if the replacement or restart fails.
 
 ## Building it
 
