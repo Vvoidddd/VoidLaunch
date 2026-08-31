@@ -13,9 +13,10 @@
     <Company>Vvoidddd</Company>
     <Description>Open-source Windows game library and launcher.</Description>
     <Version>1.0.0</Version>
-    <AssemblyVersion>1.0.0.0</AssemblyVersion>
-    <FileVersion>1.0.0.0</FileVersion>
-    <InformationalVersion>1.0.0</InformationalVersion>
+    <AssemblyVersion>$(Version).0</AssemblyVersion>
+    <FileVersion>$(Version).0</FileVersion>
+    <InformationalVersion>$(Version)</InformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <RepositoryUrl>https://github.com/Vvoidddd/VoidLaunch</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <ApplicationIcon>457bd043-4f2c-4db5-96fa-1fb1b90d9fb2-removebg-preview.ico</ApplicationIcon>
