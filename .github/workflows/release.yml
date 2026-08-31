@@ -1,47 +1,91 @@
-name: Build Release
+name: Publish VoidLaunch
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
-  release:
-    types: [published]
+    inputs:
+      version:
+        description: Optional exact version (for example 1.2.0). Leave blank for automatic numbering.
+        required: false
+        type: string
 
 permissions:
   contents: write
 
+concurrency:
+  group: voidlaunch-release
+  cancel-in-progress: false
+
 jobs:
-  windows-release:
+  publish:
     runs-on: windows-latest
+
     steps:
       - name: Check out source
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up .NET 8
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
 
-      - name: Select application version
+      - name: Select release version
         shell: pwsh
         run: |
-          if ('${{ github.event_name }}' -eq 'release') {
-            $version = '${{ github.event.release.tag_name }}'.TrimStart('v', 'V')
+          $requestedVersion = '${{ inputs.version }}'.Trim().TrimStart('v', 'V')
+
+          if ($requestedVersion) {
+            $version = $requestedVersion
           }
           else {
             [xml]$project = Get-Content .\VoidLaunch\VoidLaunch.csproj
-            $version = [string]$project.Project.PropertyGroup.Version
+            $baseVersion = [string]$project.Project.PropertyGroup.Version
+
+            if ($baseVersion -notmatch '^(\d+)\.(\d+)\.\d+$') {
+              throw "The project Version must use MAJOR.MINOR.PATCH. Received: $baseVersion"
+            }
+
+            $version = "$($Matches[1]).$($Matches[2]).${{ github.run_number }}"
           }
 
           if ($version -notmatch '^\d+\.\d+\.\d+$') {
-            throw "Release versions must use vMAJOR.MINOR.PATCH, for example v1.0.1. Received: $version"
+            throw "Versions must use MAJOR.MINOR.PATCH, for example 1.0.1. Received: $version"
+          }
+
+          $tag = "v$version"
+          $existingTag = git ls-remote --tags origin "refs/tags/$tag"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Could not check whether release tag $tag already exists."
+          }
+
+          if ($existingTag) {
+            throw "Release tag $tag already exists. Choose a newer version."
           }
 
           "APP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "RELEASE_TAG=$tag" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "Publishing VoidLaunch $version"
 
       - name: Publish one self-contained EXE
         shell: pwsh
-        run: dotnet publish .\VoidLaunch\VoidLaunch.csproj -c Release -r win-x64 --self-contained true -p:Version=$env:APP_VERSION -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugSymbols=false -p:DebugType=None -o .\release
+        run: |
+          dotnet publish .\VoidLaunch\VoidLaunch.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            -p:Version=$env:APP_VERSION `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:EnableCompressionInSingleFile=true `
+            -p:PublishTrimmed=false `
+            -p:DebugSymbols=false `
+            -p:DebugType=None `
+            -o .\release
 
-      - name: Verify release contains one file
+      - name: Verify release output
         shell: pwsh
         run: |
           $files = @(Get-ChildItem .\release -File)
@@ -49,14 +93,29 @@ jobs:
             throw "Expected only release/VoidLaunch.exe, found: $($files.Name -join ', ')"
           }
 
-      - name: Upload workflow artifact
+          $actualVersion = $files[0].VersionInfo.FileVersion
+          $expectedVersion = "$env:APP_VERSION.0"
+          if ($actualVersion -ne $expectedVersion) {
+            throw "EXE version mismatch. Expected $expectedVersion, received $actualVersion."
+          }
+
+          "Verified $($files[0].Name) ($($files[0].Length) bytes), version $actualVersion"
+
+      - name: Keep workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: VoidLaunch-${{ github.sha }}
+          name: VoidLaunch-${{ env.APP_VERSION }}
           path: release/VoidLaunch.exe
+          if-no-files-found: error
 
-      - name: Attach EXE to GitHub Release
-        if: github.event_name == 'release'
+      - name: Create GitHub Release and upload EXE
+        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.event.release.tag_name }}" .\release\VoidLaunch.exe --clobber
+        run: |
+          gh release create $env:RELEASE_TAG `
+            .\release\VoidLaunch.exe `
+            --target '${{ github.sha }}' `
+            --title "VoidLaunch $env:APP_VERSION" `
+            --generate-notes `
+            --latest
