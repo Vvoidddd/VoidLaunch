@@ -37,7 +37,7 @@
 
             <Setter Property="Background" Value="Transparent" />
 
-            <Setter Property="Foreground" Value="{StaticResource SecondaryBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource SecondaryBrush}" />
 
             <Setter Property="BorderThickness" Value="0" />
 
@@ -70,15 +70,15 @@
 
                             <Trigger Property="IsMouseOver" Value="True">
 
-                                <Setter TargetName="ButtonBorder" Property="Background" Value="{StaticResource CardHoverBrush}" />
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="{DynamicResource CardHoverBrush}" />
 
-                                <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
 
                             </Trigger>
 
                             <Trigger Property="IsPressed" Value="True">
 
-                                <Setter TargetName="ButtonBorder" Property="Background" Value="{StaticResource BorderBrush}" />
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="{DynamicResource BorderBrush}" />
 
                             </Trigger>
 
@@ -97,9 +97,9 @@
 
         <Style x:Key="PrimaryButton" TargetType="{x:Type Button}">
 
-            <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
 
-            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
 
             <Setter Property="BorderThickness" Value="0" />
 
@@ -160,7 +160,7 @@
 
             <Setter Property="Background" Value="Transparent" />
 
-            <Setter Property="Foreground" Value="{StaticResource SecondaryBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource SecondaryBrush}" />
 
             <Setter Property="BorderThickness" Value="0" />
 
@@ -174,7 +174,7 @@
 
                     <ControlTemplate TargetType="{x:Type Button}">
 
-                        <Border x:Name="WindowButtonBorder" Background="{TemplateBinding Background}">
+                        <Border x:Name="WindowButtonBorder" Background="{TemplateBinding Background}" CornerRadius="8">
 
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
 
@@ -184,9 +184,9 @@
 
                             <Trigger Property="IsMouseOver" Value="True">
 
-                                <Setter TargetName="WindowButtonBorder" Property="Background" Value="{StaticResource CardHoverBrush}" />
+                                <Setter TargetName="WindowButtonBorder" Property="Background" Value="{DynamicResource CardHoverBrush}" />
 
-                                <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
 
                             </Trigger>
 
@@ -316,7 +316,7 @@
 
                                                     <Trigger Property="IsDragging" Value="True">
 
-                                                        <Setter TargetName="ThumbBorder" Property="Background" Value="{StaticResource AccentBrush}" />
+                                                        <Setter TargetName="ThumbBorder" Property="Background" Value="{DynamicResource AccentBrush}" />
 
                                                     </Trigger>
 
@@ -363,14 +363,14 @@
         </Style>
 
         <Style x:Key="SecondaryButton" TargetType="{x:Type Button}" BasedOn="{StaticResource PrimaryButton}">
-            <Setter Property="Background" Value="{StaticResource CardBrush}" />
-            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="Background" Value="{DynamicResource CardBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type Button}">
                         <Border x:Name="SecondaryBorder"
                                 Background="{TemplateBinding Background}"
-                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderBrush="{DynamicResource BorderBrush}"
                                 BorderThickness="1"
                                 CornerRadius="8">
                             <ContentPresenter Margin="{TemplateBinding Padding}"
@@ -379,7 +379,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="SecondaryBorder" Property="Background" Value="{StaticResource CardHoverBrush}" />
+                                <Setter TargetName="SecondaryBorder" Property="Background" Value="{DynamicResource CardHoverBrush}" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="SecondaryBorder" Property="Opacity" Value="0.72" />
@@ -391,14 +391,14 @@
         </Style>
 
         <Style x:Key="FieldTextBox" TargetType="{x:Type TextBox}">
-            <Setter Property="Background" Value="{StaticResource CardBrush}" />
-            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
-            <Setter Property="CaretBrush" Value="{StaticResource AccentBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="Background" Value="{DynamicResource CardBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+            <Setter Property="CaretBrush" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Padding" Value="12,9" />
             <Setter Property="FocusVisualStyle" Value="{x:Null}" />
-            <Setter Property="SelectionBrush" Value="{StaticResource AccentBrush}" />
+            <Setter Property="SelectionBrush" Value="{DynamicResource AccentBrush}" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type TextBox}">
@@ -409,7 +409,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsKeyboardFocused" Value="True">
-                                <Setter TargetName="FieldBorder" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                <Setter TargetName="FieldBorder" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -418,8 +418,8 @@
         </Style>
 
         <Style x:Key="InfoCard" TargetType="{x:Type Border}">
-            <Setter Property="Background" Value="{StaticResource CardBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="Background" Value="{DynamicResource CardBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="12" />
             <Setter Property="Padding" Value="18" />
@@ -448,10 +448,11 @@
 
 
     <Border
-        Background="{StaticResource BackgroundBrush}"
-        BorderBrush="{StaticResource BorderBrush}"
+        x:Name="MainWindowShell"
+        Background="{DynamicResource BackgroundBrush}"
+        BorderBrush="{DynamicResource BorderBrush}"
         BorderThickness="1"
-        CornerRadius="10"
+        CornerRadius="16"
         ClipToBounds="True">
 
         <Grid>
@@ -466,7 +467,9 @@
 
             <Border
                 Grid.Row="0"
-                Background="{StaticResource SidebarBrush}"
+                Background="{DynamicResource SidebarBrush}"
+                CornerRadius="15,15,0,0"
+                ClipToBounds="True"
                 MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
 
                 <Grid>
@@ -479,7 +482,7 @@
                         <Border
                             Width="25"
                             Height="25"
-                            Background="{StaticResource AccentBrush}"
+                            Background="{DynamicResource AccentBrush}"
                             CornerRadius="7">
 
                             <TextBlock
@@ -487,18 +490,17 @@
                                 VerticalAlignment="Center"
                                 FontSize="13"
                                 FontWeight="Bold"
-                                Foreground="{StaticResource TextBrush}"
+                                Foreground="{DynamicResource TextBrush}"
                                 Text="V" />
 
                         </Border>
 
-                        <TextBlock
-                            Margin="10,0,0,0"
-                            VerticalAlignment="Center"
-                            FontSize="13"
-                            FontWeight="SemiBold"
-                            Foreground="{StaticResource TextBrush}"
-                            Text="VOIDLAUNCH" />
+                        <StackPanel Margin="10,0,0,0" VerticalAlignment="Center" Orientation="Horizontal">
+                            <TextBlock FontSize="13" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextBrush}" Text="VOID" />
+                            <TextBlock FontSize="13" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource AccentBrush}" Text="LAUNCH" />
+                        </StackPanel>
 
                     </StackPanel>
 
@@ -541,9 +543,11 @@
 
                 <Border
                     Grid.Column="0"
-                    Background="{StaticResource SidebarBrush}"
-                    BorderBrush="{StaticResource BorderBrush}"
-                    BorderThickness="0,0,1,0">
+                    Background="{DynamicResource SidebarBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="0,0,1,0"
+                    CornerRadius="0,0,0,15"
+                    ClipToBounds="True">
 
                     <Grid>
 
@@ -558,13 +562,13 @@
                             <TextBlock
                                 FontSize="25"
                                 FontWeight="Bold"
-                                Foreground="{StaticResource TextBrush}"
+                                Foreground="{DynamicResource TextBrush}"
                                 Text="VOID" />
 
                             <TextBlock
                                 FontSize="10"
                                 FontWeight="SemiBold"
-                                Foreground="{StaticResource AccentBrush}"
+                                Foreground="{DynamicResource AccentBrush}"
                                 Text="LAUNCH" />
 
                         </StackPanel>
@@ -639,7 +643,7 @@
                                     <TextBlock
                                         Width="28"
                                         FontSize="19"
-                                        Foreground="{StaticResource AccentBrush}"
+                                        Foreground="{DynamicResource AccentBrush}"
                                         Text="+" />
 
                                     <TextBlock VerticalAlignment="Center" Text="Add Game Folder" />
@@ -924,7 +928,7 @@
                     </Grid>
                     <Border Grid.Row="1" Margin="0,8,0,0" Style="{StaticResource InfoCard}">
                         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="520">
-                            <Border Width="76" Height="76" Background="{StaticResource AccentBrush}" CornerRadius="22">
+                            <Border Width="76" Height="76" Background="{DynamicResource AccentBrush}" CornerRadius="22">
                                 <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="22"
                                            FontWeight="Bold" Foreground="{StaticResource TextBrush}" Text="&lt;/&gt;" />
                             </Border>
@@ -970,7 +974,7 @@
                                     </StackPanel>
                                     <Border Grid.Column="1" Padding="12,7" Background="{StaticResource CardHoverBrush}" CornerRadius="12">
                                         <StackPanel Orientation="Horizontal">
-                                            <Ellipse Width="9" Height="9" Margin="0,0,7,0" Fill="{StaticResource AccentBrush}" />
+                                            <Ellipse Width="9" Height="9" Margin="0,0,7,0" Fill="{DynamicResource AccentBrush}" />
                                             <TextBlock x:Name="AboutHealthText" Foreground="{StaticResource TextBrush}" Text="Healthy" />
                                         </StackPanel>
                                     </Border>

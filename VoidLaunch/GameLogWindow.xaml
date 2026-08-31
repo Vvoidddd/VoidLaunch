@@ -30,13 +30,13 @@
                                 <Thumb MinHeight="40">
                                     <Thumb.Template>
                                         <ControlTemplate TargetType="{x:Type Thumb}">
-                                            <Border x:Name="ThumbBorder" Margin="1,2" Background="{StaticResource BorderBrush}" CornerRadius="4" />
+                                            <Border x:Name="ThumbBorder" Margin="1,2" Background="{DynamicResource BorderBrush}" CornerRadius="4" />
                                             <ControlTemplate.Triggers>
                                                 <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter TargetName="ThumbBorder" Property="Background" Value="{StaticResource SecondaryBrush}" />
+                                                    <Setter TargetName="ThumbBorder" Property="Background" Value="{DynamicResource SecondaryBrush}" />
                                                 </Trigger>
                                                 <Trigger Property="IsDragging" Value="True">
-                                                    <Setter TargetName="ThumbBorder" Property="Background" Value="{StaticResource AccentBrush}" />
+                                                    <Setter TargetName="ThumbBorder" Property="Background" Value="{DynamicResource AccentBrush}" />
                                                 </Trigger>
                                             </ControlTemplate.Triggers>
                                         </ControlTemplate>
@@ -53,8 +53,8 @@
         </Style>
 
         <Style x:Key="PrimaryButton" TargetType="{x:Type Button}">
-            <Setter Property="Background" Value="{StaticResource AccentBrush}" />
-            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="FocusVisualStyle" Value="{x:Null}" />
             <Setter Property="Padding" Value="17,9" />
@@ -74,16 +74,16 @@
         </Style>
 
         <Style x:Key="SecondaryButton" TargetType="{x:Type Button}" BasedOn="{StaticResource PrimaryButton}">
-            <Setter Property="Background" Value="{StaticResource CardBrush}" />
+            <Setter Property="Background" Value="{DynamicResource CardBrush}" />
             <Setter Property="Template"><Setter.Value>
                 <ControlTemplate TargetType="{x:Type Button}">
                     <Border x:Name="ButtonBorder" Background="{TemplateBinding Background}"
-                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8">
+                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8">
                         <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
                     <ControlTemplate.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="ButtonBorder" Property="Background" Value="{StaticResource CardHoverBrush}" /></Trigger>
-                        <Trigger Property="IsPressed" Value="True"><Setter TargetName="ButtonBorder" Property="Background" Value="{StaticResource BorderBrush}" /></Trigger>
+                        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="ButtonBorder" Property="Background" Value="{DynamicResource CardHoverBrush}" /></Trigger>
+                        <Trigger Property="IsPressed" Value="True"><Setter TargetName="ButtonBorder" Property="Background" Value="{DynamicResource BorderBrush}" /></Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value></Setter>
@@ -91,19 +91,19 @@
 
         <Style x:Key="WindowButton" TargetType="{x:Type Button}">
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Foreground" Value="{StaticResource SecondaryBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource SecondaryBrush}" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="FocusVisualStyle" Value="{x:Null}" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template"><Setter.Value>
                 <ControlTemplate TargetType="{x:Type Button}">
-                    <Border x:Name="ButtonBorder" Background="{TemplateBinding Background}">
+                    <Border x:Name="ButtonBorder" Background="{TemplateBinding Background}" CornerRadius="8">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="ButtonBorder" Property="Background" Value="{StaticResource CardHoverBrush}" />
-                            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+                            <Setter TargetName="ButtonBorder" Property="Background" Value="{DynamicResource CardHoverBrush}" />
+                            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -111,21 +111,23 @@
         </Style>
     </Window.Resources>
 
-    <Border Background="{StaticResource BackgroundBrush}" BorderBrush="{StaticResource BorderBrush}"
-            BorderThickness="1" CornerRadius="10" ClipToBounds="True">
+    <Border x:Name="GameLogShell" Background="{DynamicResource BackgroundBrush}"
+            BorderBrush="{DynamicResource BorderBrush}"
+            BorderThickness="1" CornerRadius="16" ClipToBounds="True">
         <Grid>
             <Grid.RowDefinitions><RowDefinition Height="48" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-            <Border Grid.Row="0" Background="{StaticResource SidebarBrush}" CornerRadius="10,10,0,0"
+            <Border Grid.Row="0" Background="{DynamicResource SidebarBrush}" CornerRadius="15,15,0,0"
+                    ClipToBounds="True"
                     MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
                 <Grid>
                     <StackPanel Margin="17,0,0,0" VerticalAlignment="Center" Orientation="Horizontal">
-                        <Border Width="25" Height="25" Background="{StaticResource AccentBrush}" CornerRadius="7">
+                        <Border Width="25" Height="25" Background="{DynamicResource AccentBrush}" CornerRadius="7">
                             <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="11"
-                                       FontWeight="Bold" Foreground="{StaticResource TextBrush}" Text="&gt;_" />
+                                       FontWeight="Bold" Foreground="{DynamicResource TextBrush}" Text="&gt;_" />
                         </Border>
                         <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
-                            <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}" Text="GAME LOG" />
-                            <TextBlock x:Name="DockStatusText" FontSize="10" Foreground="{StaticResource SecondaryBrush}"
+                            <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" Text="GAME LOG" />
+                            <TextBlock x:Name="DockStatusText" FontSize="10" Foreground="{DynamicResource SecondaryBrush}"
                                        Text="Drag near the launcher to attach" />
                         </StackPanel>
                     </StackPanel>
@@ -141,14 +143,14 @@
             <Grid Grid.Row="1" Margin="18">
                 <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                 <StackPanel Margin="0,0,0,14">
-                    <TextBlock x:Name="GameNameText" FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}" />
-                    <TextBlock x:Name="StatusText" Margin="0,4,0,0" Foreground="{StaticResource SecondaryBrush}" />
+                    <TextBlock x:Name="GameNameText" FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" />
+                    <TextBlock x:Name="StatusText" Margin="0,4,0,0" Foreground="{DynamicResource SecondaryBrush}" />
                 </StackPanel>
-                <Border Grid.Row="1" Background="{StaticResource CardBrush}" BorderBrush="{StaticResource BorderBrush}"
+                <Border Grid.Row="1" Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource BorderBrush}"
                         BorderThickness="1" CornerRadius="10" ClipToBounds="True">
                     <TextBox x:Name="LogTextBox" IsReadOnly="True" AcceptsReturn="True" AcceptsTab="True"
                              TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
-                             Background="Transparent" Foreground="{StaticResource TextBrush}" BorderThickness="0"
+                             Background="Transparent" Foreground="{DynamicResource TextBrush}" BorderThickness="0"
                              FontFamily="Consolas" FontSize="13" Padding="13" />
                 </Border>
                 <StackPanel Grid.Row="2" Margin="0,14,0,0" Orientation="Horizontal" HorizontalAlignment="Right">
