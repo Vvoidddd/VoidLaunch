@@ -1617,11 +1617,11 @@ namespace VoidLaunch
                 {
                     Margin = new Thickness(0, 0, 0, 8),
                     Padding = new Thickness(12, 10, 12, 10),
-                    Background = FindBrush("CardHoverBrush"),
-                    BorderBrush = FindBrush("BorderBrush"),
                     BorderThickness = new Thickness(1),
                     CornerRadius = new CornerRadius(9)
                 };
+                row.SetResourceReference(Border.BackgroundProperty, "CardHoverBrush");
+                row.SetResourceReference(Border.BorderBrushProperty, "BorderBrush");
 
                 var layout = new Grid();
                 layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -1629,20 +1629,23 @@ namespace VoidLaunch
                 layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(48) });
 
                 var label = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-                label.Children.Add(new TextBlock
+                var colorNameText = new TextBlock
                 {
                     Text = colorName,
-                    FontWeight = FontWeights.SemiBold,
-                    Foreground = FindBrush("TextBrush")
-                });
-                label.Children.Add(new TextBlock
+                    FontWeight = FontWeights.SemiBold
+                };
+                colorNameText.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+                label.Children.Add(colorNameText);
+
+                var descriptionText = new TextBlock
                 {
                     Margin = new Thickness(0, 3, 12, 0),
                     Text = ThemeColorDescriptions[colorName],
                     TextWrapping = TextWrapping.Wrap,
-                    FontSize = 11,
-                    Foreground = FindBrush("SecondaryBrush")
-                });
+                    FontSize = 11
+                };
+                descriptionText.SetResourceReference(TextBlock.ForegroundProperty, "SecondaryBrush");
+                label.Children.Add(descriptionText);
                 layout.Children.Add(label);
 
                 var input = new TextBox
