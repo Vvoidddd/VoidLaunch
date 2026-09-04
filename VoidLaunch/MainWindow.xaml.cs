@@ -20,7 +20,13 @@ using Button = System.Windows.Controls.Button;
 using Cursors = System.Windows.Input.Cursors;
 using HorizontalAlignment = System.Windows.HorizontalAlignment;
 using Image = System.Windows.Controls.Image;
+using MediaColor = System.Windows.Media.Color;
+using MediaColorConverter = System.Windows.Media.ColorConverter;
+using OpenFileDialog = Microsoft.Win32.OpenFileDialog;
+using Orientation = System.Windows.Controls.Orientation;
+using Panel = System.Windows.Controls.Panel;
 using SaveFileDialog = Microsoft.Win32.SaveFileDialog;
+using TextBox = System.Windows.Controls.TextBox;
 
 namespace VoidLaunch
 {
@@ -29,6 +35,24 @@ namespace VoidLaunch
         private readonly LibraryService _libraryService;
         private readonly GameScanner _scanner;
         private readonly UpdateService _updateService;
+        private readonly Dictionary<string, TextBox> _themeColorInputs =
+            new Dictionary<string, TextBox>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, Button> _themeColorSwatches =
+            new Dictionary<string, Button>(StringComparer.OrdinalIgnoreCase);
+
+        private static readonly IReadOnlyDictionary<string, string> ThemeColorDescriptions =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Background"] = "Main window and page background",
+                ["Sidebar"] = "Navigation and title bars",
+                ["Card"] = "Panels, fields, and secondary buttons",
+                ["CardHover"] = "Cards and buttons under the pointer",
+                ["Border"] = "Outlines, separators, and scroll tracks",
+                ["Text"] = "Headings and primary text",
+                ["Secondary"] = "Descriptions and quieter text",
+                ["Accent"] = "Main buttons, highlights, and branding",
+                ["Error"] = "Errors, warnings, and crash messages"
+            };
 
         private LibraryData _library =
             new LibraryData();
@@ -43,6 +67,11 @@ namespace VoidLaunch
         private bool _releaseHistoryLoaded;
         private GameEntry? _selectedGame;
         private UpdateCheckResult? _latestUpdate;
+        private bool _isUpdatingThemeEditor;
+        private string? _selectedSavedThemeName;
+        private string _themeEditorBaselineCode = string.Empty;
+        private string _themeEditorBaselineName = string.Empty;
+        private bool _themeEditorBaselineIsBuiltIn;
 
         public MainWindow()
         {
@@ -82,6 +111,7 @@ namespace VoidLaunch
 
             NormalizeLibraryData();
             ApplySavedTheme();
+            BuildThemeColorEditors();
             BuildThemeButtons();
 
             UpdateFolderText();
@@ -1462,79 +1492,627 @@ namespace VoidLaunch
 
         private void Settings_Click(object sender, RoutedEventArgs e)
         {
+            BuildThemeColorEditors();
             BuildThemeButtons();
-            ThemeCodeBox.Text = ThemeService.Themes.ContainsKey(_library.Settings.ThemeName)
-                ? ThemeService.GetCode(_library.Settings.ThemeName)
-                : _library.Settings.ThemeCode;
-            ThemeStatusText.Text = $"Current theme: {_library.Settings.ThemeName}";
+            string code = GetSelectedThemeCode();
+            LoadThemeIntoEditor(
+                _library.Settings.ThemeName,
+                code,
+                ThemeService.IsBuiltIn(_library.Settings.ThemeName));
+            ThemeStatusText.Text = "Pick a preset or change any color to begin.";
+            ThemeStatusText.Foreground = FindBrush("SecondaryBrush");
             ShowPage(SettingsPage);
         }
 
         private void BuildThemeButtons()
         {
-            if (ThemeButtons is null)
+            if (BuiltInThemeButtons is null || SavedThemeButtons is null)
                 return;
 
-            ThemeButtons.Children.Clear();
+            BuiltInThemeButtons.Children.Clear();
+            SavedThemeButtons.Children.Clear();
 
-            foreach (string themeName in ThemeService.Themes.Keys)
+            foreach ((string themeName, IReadOnlyDictionary<string, string> colors) in ThemeService.Themes)
+                AddThemeChoiceButton(BuiltInThemeButtons, themeName, ThemeService.GetCode(themeName), colors, true);
+
+            foreach (SavedTheme theme in _library.Settings.SavedThemes
+                         .OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase))
             {
-                var button = new Button
+                if (ThemeService.TryGetColors(theme.Code, out IReadOnlyDictionary<string, string> colors, out _))
+                    AddThemeChoiceButton(SavedThemeButtons, theme.Name, theme.Code, colors, false);
+            }
+
+            SavedThemesEmptyText.Visibility = _library.Settings.SavedThemes.Count == 0
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
+
+        private void AddThemeChoiceButton(
+            Panel destination,
+            string themeName,
+            string code,
+            IReadOnlyDictionary<string, string> colors,
+            bool isBuiltIn)
+        {
+            var content = new StackPanel();
+            content.Children.Add(new TextBlock
+            {
+                Text = themeName,
+                MaxWidth = 145,
+                FontWeight = FontWeights.SemiBold,
+                TextTrimming = TextTrimming.CharacterEllipsis
+            });
+
+            var palette = new StackPanel
+            {
+                Margin = new Thickness(0, 8, 0, 0),
+                Orientation = Orientation.Horizontal
+            };
+
+            foreach (string colorName in new[] { "Background", "Card", "Border", "Accent", "Text" })
+            {
+                palette.Children.Add(new Border
                 {
-                    Content = themeName,
-                    Margin = new Thickness(0, 0, 8, 8),
-                    Style = (Style)FindResource(
-                        string.Equals(themeName, _library.Settings.ThemeName, StringComparison.OrdinalIgnoreCase)
-                            ? "PrimaryButton"
-                            : "SecondaryButton")
+                    Width = 23,
+                    Height = 9,
+                    Margin = new Thickness(0, 0, 4, 0),
+                    Background = BrushFromHex(colors[colorName]),
+                    BorderBrush = BrushFromHex(colors["Border"]),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(3)
+                });
+            }
+
+            content.Children.Add(palette);
+            content.Children.Add(new TextBlock
+            {
+                Margin = new Thickness(0, 7, 0, 0),
+                FontSize = 10,
+                Opacity = 0.72,
+                Text = isBuiltIn ? "BUILT IN" : "SAVED"
+            });
+
+            var button = new Button
+            {
+                Width = 174,
+                MinHeight = 78,
+                Content = content,
+                Margin = new Thickness(0, 0, 8, 8),
+                Padding = new Thickness(12, 10, 12, 10),
+                ToolTip = $"Use {themeName}",
+                Style = (Style)FindResource(
+                    string.Equals(themeName, _library.Settings.ThemeName, StringComparison.OrdinalIgnoreCase)
+                        ? "PrimaryButton"
+                        : "SecondaryButton")
+            };
+
+            button.Click += async (_, _) => await SelectThemeAsync(themeName, code, isBuiltIn);
+            destination.Children.Add(button);
+        }
+
+        private async Task SelectThemeAsync(string themeName, string code, bool isBuiltIn)
+        {
+            if (!ThemeService.TryNormalizeCode(code, out string normalizedCode, out string error))
+            {
+                SetThemeStatus(error, true);
+                return;
+            }
+
+            _library.Settings.ThemeName = themeName;
+            _library.Settings.ThemeCode = normalizedCode;
+            ApplyThemeCode(normalizedCode, $"Applied {themeName}. Your choice was saved.");
+            LoadThemeIntoEditor(themeName, normalizedCode, isBuiltIn);
+            BuildThemeButtons();
+            await _libraryService.SaveAsync(_library);
+        }
+
+        private void BuildThemeColorEditors()
+        {
+            if (ThemeColorEditors is null || _themeColorInputs.Count > 0)
+                return;
+
+            foreach (string colorName in ThemeService.ColorKeys)
+            {
+                var row = new Border
+                {
+                    Margin = new Thickness(0, 0, 0, 8),
+                    Padding = new Thickness(12, 10, 12, 10),
+                    Background = FindBrush("CardHoverBrush"),
+                    BorderBrush = FindBrush("BorderBrush"),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(9)
                 };
 
-                button.Click += async (_, _) =>
-                {
-                    string code = ThemeService.GetCode(themeName);
-                    ThemeCodeBox.Text = code;
-                    _library.Settings.ThemeName = themeName;
-                    _library.Settings.ThemeCode = code;
-                    ApplyThemeCode(code, $"Applied {themeName}");
-                    BuildThemeButtons();
-                    await _libraryService.SaveAsync(_library);
-                };
+                var layout = new Grid();
+                layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(118) });
+                layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(48) });
 
-                ThemeButtons.Children.Add(button);
+                var label = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+                label.Children.Add(new TextBlock
+                {
+                    Text = colorName,
+                    FontWeight = FontWeights.SemiBold,
+                    Foreground = FindBrush("TextBrush")
+                });
+                label.Children.Add(new TextBlock
+                {
+                    Margin = new Thickness(0, 3, 12, 0),
+                    Text = ThemeColorDescriptions[colorName],
+                    TextWrapping = TextWrapping.Wrap,
+                    FontSize = 11,
+                    Foreground = FindBrush("SecondaryBrush")
+                });
+                layout.Children.Add(label);
+
+                var input = new TextBox
+                {
+                    Tag = colorName,
+                    Margin = new Thickness(8, 0, 8, 0),
+                    VerticalContentAlignment = VerticalAlignment.Center,
+                    ToolTip = "Enter a color like #F472B6",
+                    Style = (Style)FindResource("FieldTextBox")
+                };
+                input.TextChanged += ThemeColorInput_TextChanged;
+                Grid.SetColumn(input, 1);
+                layout.Children.Add(input);
+                _themeColorInputs[colorName] = input;
+
+                var swatch = new Button
+                {
+                    Tag = colorName,
+                    Width = 42,
+                    Height = 38,
+                    Padding = new Thickness(0),
+                    Content = "■",
+                    FontSize = 22,
+                    ToolTip = $"Choose the {colorName.ToLowerInvariant()} color",
+                    Style = (Style)FindResource("SecondaryButton")
+                };
+                swatch.Click += ChooseThemeColor_Click;
+                Grid.SetColumn(swatch, 2);
+                layout.Children.Add(swatch);
+                _themeColorSwatches[colorName] = swatch;
+
+                row.Child = layout;
+                ThemeColorEditors.Children.Add(row);
             }
         }
 
-        private async void ApplyTheme_Click(object sender, RoutedEventArgs e)
+        private void LoadThemeIntoEditor(string themeName, string code, bool isBuiltIn)
         {
-            if (!ApplyThemeCode(ThemeCodeBox.Text, "Custom theme applied"))
+            BuildThemeColorEditors();
+
+            if (!ThemeService.TryNormalizeCode(code, out string normalizedCode, out _))
+                normalizedCode = ThemeService.GetCode("Void Purple");
+
+            if (!ThemeService.TryGetColors(
+                    normalizedCode,
+                    out IReadOnlyDictionary<string, string> colors,
+                    out _))
+            {
+                return;
+            }
+
+            _isUpdatingThemeEditor = true;
+            try
+            {
+                foreach (string colorName in ThemeService.ColorKeys)
+                {
+                    _themeColorInputs[colorName].Text = colors[colorName];
+                    _themeColorSwatches[colorName].Foreground = BrushFromHex(colors[colorName]);
+                }
+
+                ThemeCodeBox.Text = normalizedCode;
+                ThemeNameBox.Text = isBuiltIn ? $"{themeName} Custom" : themeName;
+            }
+            finally
+            {
+                _isUpdatingThemeEditor = false;
+            }
+
+            _selectedSavedThemeName = isBuiltIn ? null : themeName;
+            _themeEditorBaselineCode = normalizedCode;
+            _themeEditorBaselineName = themeName;
+            _themeEditorBaselineIsBuiltIn = isBuiltIn;
+            DeleteThemeButton.IsEnabled = !isBuiltIn;
+            SaveThemeButton.Content = isBuiltIn ? "Save as my theme" : "Update my theme";
+            CurrentThemeText.Text = $"Current theme: {_library.Settings.ThemeName}";
+            UpdateThemeAccessibility(colors);
+        }
+
+        private void ThemeColorInput_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (_isUpdatingThemeEditor || sender is not TextBox input || input.Tag is not string colorName)
                 return;
 
-            _library.Settings.ThemeName = "Custom";
-            _library.Settings.ThemeCode = ThemeCodeBox.Text;
+            try
+            {
+                var color = (MediaColor)MediaColorConverter.ConvertFromString(input.Text.Trim());
+                _themeColorSwatches[colorName].Foreground = new SolidColorBrush(color);
+            }
+            catch
+            {
+                // Keep the last valid swatch while the user is still typing.
+            }
+
+            if (!TryBuildThemeCode(out string code, out string error))
+            {
+                SetThemeStatus(error, true);
+                return;
+            }
+
+            _isUpdatingThemeEditor = true;
+            ThemeCodeBox.Text = code;
+            _isUpdatingThemeEditor = false;
+
+            if (!ApplyThemeResources(code, out error))
+            {
+                SetThemeStatus(error, true);
+                return;
+            }
+
+            CurrentThemeText.Text = $"Previewing unsaved changes to {_library.Settings.ThemeName}";
+            SetThemeStatus("Live preview is on. Save the theme when it looks right.");
+            if (ThemeService.TryGetColors(code, out IReadOnlyDictionary<string, string> colors, out _))
+                UpdateThemeAccessibility(colors);
+            RefreshLibrary();
+        }
+
+        private void ChooseThemeColor_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button button || button.Tag is not string colorName)
+                return;
+
+            MediaColor current;
+            try
+            {
+                current = (MediaColor)MediaColorConverter.ConvertFromString(
+                    _themeColorInputs[colorName].Text.Trim());
+            }
+            catch
+            {
+                current = (MediaColor)MediaColorConverter.ConvertFromString("#8B5CF6");
+            }
+
+            using var dialog = new System.Windows.Forms.ColorDialog
+            {
+                AnyColor = true,
+                FullOpen = true,
+                SolidColorOnly = true,
+                Color = System.Drawing.Color.FromArgb(current.R, current.G, current.B)
+            };
+
+            if (dialog.ShowDialog() != System.Windows.Forms.DialogResult.OK)
+                return;
+
+            _themeColorInputs[colorName].Text =
+                $"#{dialog.Color.R:X2}{dialog.Color.G:X2}{dialog.Color.B:X2}";
+        }
+
+        private async void SaveTheme_Click(object sender, RoutedEventArgs e)
+        {
+            string themeName = string.Join(
+                " ",
+                ThemeNameBox.Text.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries));
+
+            if (string.IsNullOrWhiteSpace(themeName))
+            {
+                SetThemeStatus("Enter a name before saving your theme.", true);
+                ThemeNameBox.Focus();
+                return;
+            }
+
+            if (ThemeService.IsBuiltIn(themeName))
+            {
+                SetThemeStatus("That name belongs to a built-in theme. Choose a different name.", true);
+                return;
+            }
+
+            if (!TryBuildThemeCode(out string code, out string error))
+            {
+                SetThemeStatus(error, true);
+                return;
+            }
+
+            SavedTheme? selectedTheme = _library.Settings.SavedThemes.FirstOrDefault(theme =>
+                string.Equals(theme.Name, _selectedSavedThemeName, StringComparison.OrdinalIgnoreCase));
+            SavedTheme? nameCollision = _library.Settings.SavedThemes.FirstOrDefault(theme =>
+                string.Equals(theme.Name, themeName, StringComparison.OrdinalIgnoreCase));
+
+            if (nameCollision is not null && !ReferenceEquals(nameCollision, selectedTheme))
+            {
+                SetThemeStatus("A saved theme already has that name. Select it first to update it.", true);
+                return;
+            }
+
+            if (selectedTheme is null)
+            {
+                selectedTheme = new SavedTheme();
+                _library.Settings.SavedThemes.Add(selectedTheme);
+            }
+
+            selectedTheme.Name = themeName;
+            selectedTheme.Code = code;
+            _library.Settings.ThemeName = themeName;
+            _library.Settings.ThemeCode = code;
+            ApplyThemeCode(code, $"Saved and applied {themeName}.");
+            LoadThemeIntoEditor(themeName, code, false);
             BuildThemeButtons();
             await _libraryService.SaveAsync(_library);
+            SetThemeStatus($"Saved and applied {themeName}.");
+        }
+
+        private async void DeleteTheme_Click(object sender, RoutedEventArgs e)
+        {
+            SavedTheme? theme = _library.Settings.SavedThemes.FirstOrDefault(item =>
+                string.Equals(item.Name, _selectedSavedThemeName, StringComparison.OrdinalIgnoreCase));
+            if (theme is null)
+            {
+                SetThemeStatus("Select one of your saved themes before deleting it.", true);
+                return;
+            }
+
+            MessageBoxResult choice = System.Windows.MessageBox.Show(
+                this,
+                $"Delete the saved theme ‘{theme.Name}’?",
+                "Delete theme",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+            if (choice != MessageBoxResult.Yes)
+                return;
+
+            _library.Settings.SavedThemes.Remove(theme);
+            await SelectThemeAsync("Void Purple", ThemeService.GetCode("Void Purple"), true);
+            SetThemeStatus($"Deleted {theme.Name} and restored Void Purple.");
+        }
+
+        private void DuplicateTheme_Click(object sender, RoutedEventArgs e)
+        {
+            if (!TryBuildThemeCode(out _, out string error))
+            {
+                SetThemeStatus(error, true);
+                return;
+            }
+
+            string sourceName = _selectedSavedThemeName ?? _library.Settings.ThemeName;
+            ThemeNameBox.Text = GetUniqueThemeName($"{sourceName} Copy");
+            _selectedSavedThemeName = null;
+            DeleteThemeButton.IsEnabled = false;
+            SaveThemeButton.Content = "Save as my theme";
+            SetThemeStatus("A copy is ready. Rename it if you want, then choose Save as my theme.");
+            ThemeNameBox.Focus();
+            ThemeNameBox.SelectAll();
+        }
+
+        private void ResetEditor_Click(object sender, RoutedEventArgs e)
+        {
+            LoadThemeIntoEditor(
+                _themeEditorBaselineName,
+                _themeEditorBaselineCode,
+                _themeEditorBaselineIsBuiltIn);
+            ApplyThemeCode(_themeEditorBaselineCode, "Undid the unsaved color changes.");
+        }
+
+        private async void ImportTheme_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new OpenFileDialog
+            {
+                Title = "Import a VoidLaunch theme",
+                Filter = "VoidLaunch theme (*.voidtheme)|*.voidtheme|Text files (*.txt)|*.txt|All files (*.*)|*.*",
+                CheckFileExists = true
+            };
+
+            if (dialog.ShowDialog(this) != true)
+                return;
+
+            try
+            {
+                string imported = await File.ReadAllTextAsync(dialog.FileName);
+                if (!ThemeService.TryNormalizeCode(imported, out string code, out string error))
+                {
+                    SetThemeStatus($"Could not import theme: {error}", true);
+                    return;
+                }
+
+                string? declaredName = imported
+                    .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(line => line.Trim())
+                    .FirstOrDefault(line => line.StartsWith("# Name:", StringComparison.OrdinalIgnoreCase));
+                string suggestedName = declaredName is null
+                    ? Path.GetFileNameWithoutExtension(dialog.FileName)
+                    : declaredName[7..].Trim();
+                string themeName = GetUniqueThemeName(suggestedName);
+
+                _library.Settings.SavedThemes.Add(new SavedTheme { Name = themeName, Code = code });
+                _library.Settings.ThemeName = themeName;
+                _library.Settings.ThemeCode = code;
+                ApplyThemeCode(code, $"Imported and applied {themeName}.");
+                LoadThemeIntoEditor(themeName, code, false);
+                BuildThemeButtons();
+                await _libraryService.SaveAsync(_library);
+                SetThemeStatus($"Imported and saved {themeName}.");
+            }
+            catch (Exception ex)
+            {
+                SetThemeStatus($"Could not import theme: {ex.Message}", true);
+            }
+        }
+
+        private async void ExportTheme_Click(object sender, RoutedEventArgs e)
+        {
+            if (!TryBuildThemeCode(out string code, out string error))
+            {
+                SetThemeStatus(error, true);
+                return;
+            }
+
+            string themeName = string.IsNullOrWhiteSpace(ThemeNameBox.Text)
+                ? "VoidLaunch Theme"
+                : ThemeNameBox.Text.Trim();
+            char[] invalidCharacters = Path.GetInvalidFileNameChars();
+            string safeFileName = new string(themeName
+                .Select(character => invalidCharacters.Contains(character) ? '_' : character)
+                .ToArray());
+
+            var dialog = new SaveFileDialog
+            {
+                Title = "Export VoidLaunch theme",
+                Filter = "VoidLaunch theme (*.voidtheme)|*.voidtheme",
+                DefaultExt = ".voidtheme",
+                AddExtension = true,
+                FileName = safeFileName
+            };
+
+            if (dialog.ShowDialog(this) != true)
+                return;
+
+            try
+            {
+                string exported = $"# VoidLaunch theme{Environment.NewLine}# Name: {themeName}{Environment.NewLine}{code}{Environment.NewLine}";
+                await File.WriteAllTextAsync(dialog.FileName, exported);
+                SetThemeStatus($"Exported {themeName} to {dialog.FileName}");
+            }
+            catch (Exception ex)
+            {
+                SetThemeStatus($"Could not export theme: {ex.Message}", true);
+            }
+        }
+
+        private void ToggleAdvancedTheme_Click(object sender, RoutedEventArgs e)
+        {
+            AdvancedThemePanel.Visibility = AdvancedThemePanel.Visibility == Visibility.Visible
+                ? Visibility.Collapsed
+                : Visibility.Visible;
+
+            if (AdvancedThemePanel.Visibility == Visibility.Visible &&
+                TryBuildThemeCode(out string code, out _))
+            {
+                ThemeCodeBox.Text = code;
+            }
+        }
+
+        private void ApplyTheme_Click(object sender, RoutedEventArgs e)
+        {
+            if (!ThemeService.TryNormalizeCode(ThemeCodeBox.Text, out string code, out string error))
+            {
+                SetThemeStatus(error, true);
+                return;
+            }
+
+            if (!ThemeService.TryGetColors(code, out IReadOnlyDictionary<string, string> colors, out error))
+            {
+                SetThemeStatus(error, true);
+                return;
+            }
+
+            _isUpdatingThemeEditor = true;
+            try
+            {
+                foreach (string colorName in ThemeService.ColorKeys)
+                {
+                    _themeColorInputs[colorName].Text = colors[colorName];
+                    _themeColorSwatches[colorName].Foreground = BrushFromHex(colors[colorName]);
+                }
+
+                ThemeCodeBox.Text = code;
+            }
+            finally
+            {
+                _isUpdatingThemeEditor = false;
+            }
+
+            ApplyThemeCode(code, "Theme code loaded. Save the theme if you want to keep it.");
+            CurrentThemeText.Text = "Previewing advanced theme code";
+            UpdateThemeAccessibility(colors);
         }
 
         private async void ResetTheme_Click(object sender, RoutedEventArgs e)
         {
             const string themeName = "Void Purple";
-            string code = ThemeService.GetCode(themeName);
-            ThemeCodeBox.Text = code;
-            _library.Settings.ThemeName = themeName;
-            _library.Settings.ThemeCode = code;
-            ApplyThemeCode(code, "Default theme restored");
-            BuildThemeButtons();
-            await _libraryService.SaveAsync(_library);
+            await SelectThemeAsync(themeName, ThemeService.GetCode(themeName), true);
+            SetThemeStatus("Void Purple restored and saved.");
+        }
+
+        private bool TryBuildThemeCode(out string code, out string error)
+        {
+            if (_themeColorInputs.Count != ThemeService.ColorKeys.Count)
+            {
+                code = string.Empty;
+                error = "The color editor is not ready yet.";
+                return false;
+            }
+
+            string rawCode = string.Join(
+                Environment.NewLine,
+                ThemeService.ColorKeys.Select(colorName =>
+                    $"{colorName} = {_themeColorInputs[colorName].Text.Trim()}"));
+            return ThemeService.TryNormalizeCode(rawCode, out code, out error);
+        }
+
+        private string GetSelectedThemeCode()
+        {
+            if (ThemeService.IsBuiltIn(_library.Settings.ThemeName))
+                return ThemeService.GetCode(_library.Settings.ThemeName);
+
+            SavedTheme? savedTheme = _library.Settings.SavedThemes.FirstOrDefault(theme =>
+                string.Equals(theme.Name, _library.Settings.ThemeName, StringComparison.OrdinalIgnoreCase));
+            return savedTheme?.Code ?? _library.Settings.ThemeCode;
+        }
+
+        private string GetUniqueThemeName(string suggestedName)
+        {
+            string baseName = string.Join(
+                " ",
+                (suggestedName ?? string.Empty).Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries));
+            if (string.IsNullOrWhiteSpace(baseName))
+                baseName = "Imported Theme";
+            if (baseName.Length > 40)
+                baseName = baseName[..40].Trim();
+
+            string candidate = baseName;
+            int suffix = 2;
+            while (ThemeService.IsBuiltIn(candidate) ||
+                   _library.Settings.SavedThemes.Any(theme =>
+                       string.Equals(theme.Name, candidate, StringComparison.OrdinalIgnoreCase)))
+            {
+                string ending = $" ({suffix++})";
+                int availableLength = Math.Max(1, 40 - ending.Length);
+                candidate = baseName[..Math.Min(baseName.Length, availableLength)].TrimEnd() + ending;
+            }
+
+            return candidate;
+        }
+
+        private void UpdateThemeAccessibility(IReadOnlyDictionary<string, string> colors)
+        {
+            double contrast = ThemeService.GetContrastRatio(colors["Background"], colors["Text"]);
+            string rating = contrast >= 7 ? "Excellent" : contrast >= 4.5 ? "Good" : contrast >= 3 ? "Fair" : "Low";
+            ThemeAccessibilityText.Text =
+                $"Readability: {rating} ({contrast:0.0}:1 background/text contrast). " +
+                "Accent-button text is chosen automatically for readability.";
+            ThemeAccessibilityText.Foreground = contrast >= 4.5
+                ? FindBrush("SecondaryBrush")
+                : FindBrush("ErrorBrush");
         }
 
         private bool ApplyThemeCode(string code, string successMessage)
         {
-            if (!ThemeService.TryApply(Resources, code, out string error))
+            if (!ApplyThemeResources(code, out string error))
             {
-                ThemeStatusText.Text = error;
-                ThemeStatusText.Foreground = FindBrush("ErrorBrush");
+                SetThemeStatus(error, true);
                 return false;
             }
+
+            SetThemeStatus(successMessage);
+            RefreshLibrary();
+            return true;
+        }
+
+        private bool ApplyThemeResources(string code, out string error)
+        {
+            if (!ThemeService.TryApply(Resources, code, out error))
+                return false;
 
             if (System.Windows.Application.Current != null)
             {
@@ -1542,23 +2120,31 @@ namespace VoidLaunch
                     ThemeService.ApplyTo(window.Resources);
             }
 
-            ThemeStatusText.Text = successMessage;
-            ThemeStatusText.Foreground = FindBrush("AccentBrush");
-            RefreshLibrary();
             return true;
         }
 
+        private void SetThemeStatus(string message, bool isError = false)
+        {
+            ThemeStatusText.Text = message;
+            ThemeStatusText.Foreground = FindBrush(isError ? "ErrorBrush" : "AccentBrush");
+        }
+
+        private static SolidColorBrush BrushFromHex(string color) =>
+            new SolidColorBrush((MediaColor)MediaColorConverter.ConvertFromString(color));
+
         private void ApplySavedTheme()
         {
-            string code = ThemeService.Themes.ContainsKey(_library.Settings.ThemeName)
-                ? ThemeService.GetCode(_library.Settings.ThemeName)
-                : _library.Settings.ThemeCode;
+            string code = GetSelectedThemeCode();
 
-            if (string.IsNullOrWhiteSpace(code))
+            if (!ThemeService.TryNormalizeCode(code, out string normalizedCode, out _))
+            {
+                _library.Settings.ThemeName = "Void Purple";
                 code = ThemeService.GetCode("Void Purple");
+                ThemeService.TryNormalizeCode(code, out normalizedCode, out _);
+            }
 
-            ThemeService.TryApply(Resources, code, out _);
-            _library.Settings.ThemeCode = code;
+            ThemeService.TryApply(Resources, normalizedCode, out _);
+            _library.Settings.ThemeCode = normalizedCode;
         }
 
         private void ShowPage(UIElement page)
@@ -2151,6 +2737,64 @@ namespace VoidLaunch
             _library.Games ??= new List<GameEntry>();
             _library.Folders ??= new List<string>();
             _library.Settings ??= new LauncherSettings();
+            _library.Settings.SavedThemes ??= new List<SavedTheme>();
+
+            var normalizedThemes = new List<SavedTheme>();
+            foreach (SavedTheme theme in _library.Settings.SavedThemes)
+            {
+                string name = string.Join(
+                    " ",
+                    (theme.Name ?? string.Empty).Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries));
+                if (string.IsNullOrWhiteSpace(name) || ThemeService.IsBuiltIn(name) ||
+                    !ThemeService.TryNormalizeCode(theme.Code, out string normalizedCode, out _))
+                {
+                    continue;
+                }
+
+                if (name.Length > 40)
+                    name = name[..40].Trim();
+
+                SavedTheme? duplicate = normalizedThemes.FirstOrDefault(item =>
+                    string.Equals(item.Name, name, StringComparison.OrdinalIgnoreCase));
+                if (duplicate is null)
+                    normalizedThemes.Add(new SavedTheme { Name = name, Code = normalizedCode });
+                else
+                    duplicate.Code = normalizedCode;
+            }
+
+            _library.Settings.SavedThemes = normalizedThemes;
+
+            if (!ThemeService.IsBuiltIn(_library.Settings.ThemeName))
+            {
+                SavedTheme? selectedTheme = normalizedThemes.FirstOrDefault(theme =>
+                    string.Equals(theme.Name, _library.Settings.ThemeName, StringComparison.OrdinalIgnoreCase));
+
+                if (selectedTheme is null &&
+                    ThemeService.TryNormalizeCode(_library.Settings.ThemeCode, out string legacyCode, out _))
+                {
+                    string suggestedName = string.Equals(
+                        _library.Settings.ThemeName,
+                        "Custom",
+                        StringComparison.OrdinalIgnoreCase)
+                        ? "My Custom Theme"
+                        : _library.Settings.ThemeName;
+                    string migratedName = GetUniqueThemeName(suggestedName);
+                    selectedTheme = new SavedTheme { Name = migratedName, Code = legacyCode };
+                    normalizedThemes.Add(selectedTheme);
+                    _library.Settings.ThemeName = migratedName;
+                }
+
+                if (selectedTheme is null)
+                {
+                    _library.Settings.ThemeName = "Void Purple";
+                    _library.Settings.ThemeCode = ThemeService.GetCode("Void Purple");
+                }
+                else
+                {
+                    _library.Settings.ThemeName = selectedTheme.Name;
+                    _library.Settings.ThemeCode = selectedTheme.Code;
+                }
+            }
 
             foreach (GameEntry game in _library.Games)
             {

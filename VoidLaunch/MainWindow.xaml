@@ -28,6 +28,7 @@
         <SolidColorBrush x:Key="TextBrush" po:Freeze="False" Color="#F5F5F7" />
         <SolidColorBrush x:Key="SecondaryBrush" po:Freeze="False" Color="#858592" />
         <SolidColorBrush x:Key="AccentBrush" po:Freeze="False" Color="#8B5CF6" />
+        <SolidColorBrush x:Key="AccentTextBrush" po:Freeze="False" Color="#F5F5F7" />
         <SolidColorBrush x:Key="ErrorBrush" po:Freeze="False" Color="#F87171" />
 
 
@@ -99,7 +100,7 @@
 
             <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
 
-            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentTextBrush}" />
 
             <Setter Property="BorderThickness" Value="0" />
 
@@ -491,7 +492,7 @@
                                 VerticalAlignment="Center"
                                 FontSize="13"
                                 FontWeight="Bold"
-                                Foreground="{DynamicResource TextBrush}"
+                                Foreground="{DynamicResource AccentTextBrush}"
                                 Text="V" />
 
                         </Border>
@@ -659,7 +660,7 @@
                             <Button Click="Settings_Click" Style="{StaticResource SidebarButton}">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Width="28" FontSize="16" Text="⚙" />
-                                    <TextBlock VerticalAlignment="Center" Text="Settings &amp; Themes" />
+                                    <TextBlock VerticalAlignment="Center" Text="Theme Studio" />
                                 </StackPanel>
                             </Button>
 
@@ -879,7 +880,7 @@
                     </ScrollViewer>
                 </Grid>
 
-                <!-- SETTINGS / THEME CODE -->
+                <!-- THEME STUDIO -->
                 <Grid x:Name="SettingsPage" Grid.Column="1" Margin="28" Visibility="Collapsed">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="55" />
@@ -890,34 +891,133 @@
                         <Button HorizontalAlignment="Left" Content="←  Library" Click="BackToLibrary_Click"
                                 Style="{StaticResource SecondaryButton}" />
                         <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="25"
-                                   FontWeight="SemiBold" Foreground="{StaticResource TextBrush}" Text="Settings" />
+                                   FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" Text="Theme Studio" />
                     </Grid>
 
-                    <Border Grid.Row="1" Margin="0,8,0,0" Style="{StaticResource InfoCard}" />
-                    <ScrollViewer Grid.Row="1" Margin="18,18,18,18" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <ScrollViewer Grid.Row="1" Margin="0,8,0,0" VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
                         <StackPanel Margin="0,0,12,0">
-                            <TextBlock FontSize="19" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"
-                                       Text="Premade themes" />
-                            <TextBlock Margin="0,5,0,12" Foreground="{StaticResource SecondaryBrush}"
-                                       Text="Pick a starting point, then edit its color code below." />
-                            <WrapPanel x:Name="ThemeButtons" Margin="0,0,0,25" />
+                            <Border Margin="0,0,0,18" Style="{StaticResource InfoCard}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="145" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
 
-                            <TextBlock FontSize="19" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"
-                                       Text="Theme code" />
-                            <TextBlock Margin="0,5,0,10" Foreground="{StaticResource SecondaryBrush}"
-                                       Text="Change any #RRGGBB value. Unknown keys and invalid colors are rejected safely." />
-                            <TextBox x:Name="ThemeCodeBox" Height="260" AcceptsReturn="True" AcceptsTab="True"
-                                     VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
-                                     TextWrapping="Wrap" FontFamily="Consolas" FontSize="13"
-                                     Style="{StaticResource FieldTextBox}" />
-                            <TextBlock x:Name="ThemeStatusText" Margin="0,8,0,12"
-                                       Foreground="{StaticResource SecondaryBrush}" />
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                <Button Content="Reset default" Click="ResetTheme_Click"
-                                        Style="{StaticResource SecondaryButton}" />
-                                <Button Margin="9,0,0,0" Content="Apply theme code" Click="ApplyTheme_Click"
-                                        Style="{StaticResource PrimaryButton}" />
-                            </StackPanel>
+                                    <Border Width="122" Height="76" HorizontalAlignment="Left"
+                                            Background="{DynamicResource BackgroundBrush}"
+                                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                                            CornerRadius="10" ClipToBounds="True">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="34" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Background="{DynamicResource SidebarBrush}" />
+                                            <StackPanel Grid.Column="1" Margin="9" VerticalAlignment="Center">
+                                                <Border Height="10" Background="{DynamicResource CardBrush}" CornerRadius="4" />
+                                                <Border Width="46" Height="10" Margin="0,7,0,0" HorizontalAlignment="Left"
+                                                        Background="{DynamicResource AccentBrush}" CornerRadius="4" />
+                                                <Border Width="61" Height="7" Margin="0,7,0,0" HorizontalAlignment="Left"
+                                                        Background="{DynamicResource SecondaryBrush}" CornerRadius="3" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock FontSize="20" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextBrush}" Text="Make VoidLaunch yours" />
+                                        <TextBlock x:Name="CurrentThemeText" Margin="0,5,0,0"
+                                                   Foreground="{DynamicResource SecondaryBrush}" />
+                                        <TextBlock x:Name="ThemeStatusText" Margin="0,7,0,0" TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource AccentBrush}" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <Grid Margin="0,0,0,10">
+                                <TextBlock FontSize="19" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}"
+                                           Text="Quick themes" />
+                                <Button HorizontalAlignment="Right" Content="Restore Void Purple"
+                                        Click="ResetTheme_Click" Style="{StaticResource SecondaryButton}" />
+                            </Grid>
+                            <TextBlock Margin="0,0,0,12" Foreground="{DynamicResource SecondaryBrush}"
+                                       Text="Choose a ready-made look. Cherry Blossom is included." />
+                            <WrapPanel x:Name="BuiltInThemeButtons" Margin="0,0,0,18" />
+
+                            <TextBlock FontSize="19" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}"
+                                       Text="My themes" />
+                            <TextBlock x:Name="SavedThemesEmptyText" Margin="0,5,0,12"
+                                       Foreground="{DynamicResource SecondaryBrush}"
+                                       Text="Your saved themes will appear here." />
+                            <WrapPanel x:Name="SavedThemeButtons" Margin="0,0,0,18" />
+
+                            <Border Margin="0,0,0,16" Style="{StaticResource InfoCard}">
+                                <StackPanel>
+                                    <TextBlock FontSize="19" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}"
+                                               Text="Create a custom theme" />
+                                    <TextBlock Margin="0,5,0,14" Foreground="{DynamicResource SecondaryBrush}"
+                                               Text="Click a color square, choose a color, and watch the app update instantly." />
+
+                                    <TextBlock Margin="0,0,0,6" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextBrush}" Text="Theme name" />
+                                    <TextBox x:Name="ThemeNameBox" MaxLength="40" Margin="0,0,0,14"
+                                             ToolTip="Give your theme a name so you can find it later."
+                                             Style="{StaticResource FieldTextBox}" />
+
+                                    <StackPanel x:Name="ThemeColorEditors" />
+
+                                    <TextBlock x:Name="ThemeAccessibilityText" Margin="0,6,0,14"
+                                               TextWrapping="Wrap" Foreground="{DynamicResource SecondaryBrush}" />
+
+                                    <WrapPanel HorizontalAlignment="Right">
+                                        <Button x:Name="DeleteThemeButton" Margin="0,0,8,8" Content="Delete saved theme"
+                                                Click="DeleteTheme_Click" IsEnabled="False"
+                                                Style="{StaticResource SecondaryButton}" />
+                                        <Button Margin="0,0,8,8" Content="Save a copy"
+                                                Click="DuplicateTheme_Click" Style="{StaticResource SecondaryButton}" />
+                                        <Button Margin="0,0,8,8" Content="Undo color changes"
+                                                Click="ResetEditor_Click" Style="{StaticResource SecondaryButton}" />
+                                        <Button x:Name="SaveThemeButton" Margin="0,0,0,8" Content="Save as my theme"
+                                                Click="SaveTheme_Click" Style="{StaticResource PrimaryButton}" />
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Margin="0,0,0,12" Style="{StaticResource InfoCard}">
+                                <StackPanel>
+                                    <TextBlock FontSize="17" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}"
+                                               Text="Share or fine-tune" />
+                                    <TextBlock Margin="0,5,0,12" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource SecondaryBrush}"
+                                               Text="Import and export .voidtheme files, or open the advanced code editor." />
+                                    <WrapPanel>
+                                        <Button Margin="0,0,8,8" Content="Import theme" Click="ImportTheme_Click"
+                                                Style="{StaticResource SecondaryButton}" />
+                                        <Button x:Name="ExportThemeButton" Margin="0,0,8,8" Content="Export current theme"
+                                                Click="ExportTheme_Click" Style="{StaticResource SecondaryButton}" />
+                                        <Button Margin="0,0,0,8" Content="Advanced theme code"
+                                                Click="ToggleAdvancedTheme_Click" Style="{StaticResource SecondaryButton}" />
+                                    </WrapPanel>
+
+                                    <Border x:Name="AdvancedThemePanel" Margin="0,10,0,0" Padding="14"
+                                            Background="{DynamicResource BackgroundBrush}"
+                                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                                            CornerRadius="10" Visibility="Collapsed">
+                                        <StackPanel>
+                                            <TextBlock Margin="0,0,0,9" Foreground="{DynamicResource SecondaryBrush}"
+                                                       Text="All nine colors are required. Both #RRGGBB and #AARRGGBB are supported." />
+                                            <TextBox x:Name="ThemeCodeBox" Height="220" AcceptsReturn="True" AcceptsTab="True"
+                                                     VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                                                     TextWrapping="Wrap" FontFamily="Consolas" FontSize="13"
+                                                     Style="{StaticResource FieldTextBox}" />
+                                            <Button Margin="0,10,0,0" HorizontalAlignment="Right"
+                                                    Content="Load code into editor" Click="ApplyTheme_Click"
+                                                    Style="{StaticResource PrimaryButton}" />
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>
@@ -938,7 +1038,7 @@
                         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="520">
                             <Border Width="76" Height="76" Background="{DynamicResource AccentBrush}" CornerRadius="22">
                                 <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="22"
-                                           FontWeight="Bold" Foreground="{StaticResource TextBrush}" Text="&lt;/&gt;" />
+                                           FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" Text="&lt;/&gt;" />
                             </Border>
                             <TextBlock Margin="0,18,0,0" HorizontalAlignment="Center" FontSize="27"
                                        FontWeight="Bold" Foreground="{StaticResource TextBrush}" Text="Vvoidddd" />
@@ -1093,7 +1193,7 @@
                                             CornerRadius="24">
                                         <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
                                                    FontSize="31" FontWeight="Bold"
-                                                   Foreground="{DynamicResource TextBrush}" Text="◎" />
+                                                   Foreground="{DynamicResource AccentTextBrush}" Text="◎" />
                                     </Border>
 
                                     <TextBlock Margin="0,20,0,0" HorizontalAlignment="Center" FontSize="25"
@@ -1211,7 +1311,7 @@
                             Background="{DynamicResource AccentBrush}" CornerRadius="20">
                         <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
                                    FontSize="27" FontWeight="Bold"
-                                   Foreground="{DynamicResource TextBrush}" Text="↓" />
+                                   Foreground="{DynamicResource AccentTextBrush}" Text="↓" />
                     </Border>
 
                     <TextBlock Margin="0,18,0,0" HorizontalAlignment="Center"

@@ -14,6 +14,7 @@
         <SolidColorBrush x:Key="TextBrush" po:Freeze="False" Color="#F5F5F7" />
         <SolidColorBrush x:Key="SecondaryBrush" po:Freeze="False" Color="#858592" />
         <SolidColorBrush x:Key="AccentBrush" po:Freeze="False" Color="#8B5CF6" />
+        <SolidColorBrush x:Key="AccentTextBrush" po:Freeze="False" Color="#F5F5F7" />
         <SolidColorBrush x:Key="ErrorBrush" po:Freeze="False" Color="#F87171" />
 
         <Style TargetType="{x:Type ScrollBar}">
@@ -54,7 +55,7 @@
 
         <Style x:Key="PrimaryButton" TargetType="{x:Type Button}">
             <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
-            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentTextBrush}" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="FocusVisualStyle" Value="{x:Null}" />
             <Setter Property="Padding" Value="17,9" />
@@ -75,6 +76,7 @@
 
         <Style x:Key="SecondaryButton" TargetType="{x:Type Button}" BasedOn="{StaticResource PrimaryButton}">
             <Setter Property="Background" Value="{DynamicResource CardBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
             <Setter Property="Template"><Setter.Value>
                 <ControlTemplate TargetType="{x:Type Button}">
                     <Border x:Name="ButtonBorder" Background="{TemplateBinding Background}"
@@ -123,7 +125,7 @@
                     <StackPanel Margin="17,0,0,0" VerticalAlignment="Center" Orientation="Horizontal">
                         <Border Width="25" Height="25" Background="{DynamicResource AccentBrush}" CornerRadius="7">
                             <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="11"
-                                       FontWeight="Bold" Foreground="{DynamicResource TextBrush}" Text="&gt;_" />
+                                       FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" Text="&gt;_" />
                         </Border>
                         <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
                             <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" Text="GAME LOG" />

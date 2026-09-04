@@ -23,7 +23,8 @@ There is no installer and you do not need to install .NET. Put the EXE wherever 
 - Keep favorites and recently played games.
 - Use the icon from an EXE when there is no cover image.
 - Show game output in a log window that can dock to the side of the launcher.
-- Change the whole launcher with built-in themes or custom theme colors.
+- Change the whole launcher in the visual Theme Studio, save named custom themes, and share `.voidtheme` files.
+- Use the built-in Cherry Blossom theme or customize every color with live preview and readability feedback.
 - Check GitHub for updates and install a newer release.
 - Show a themed in-app update prompt with Update now and Later choices.
 - Browse every GitHub release and download an older version without replacing the installed one.

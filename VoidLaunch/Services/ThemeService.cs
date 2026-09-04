@@ -17,6 +17,8 @@ namespace VoidLaunch.Services
             "Border", "Text", "Secondary", "Accent", "Error"
         };
 
+        public static IReadOnlyList<string> ColorKeys => ColorNames;
+
         public static IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> Themes { get; } =
             new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.OrdinalIgnoreCase)
             {
@@ -24,7 +26,8 @@ namespace VoidLaunch.Services
                 ["Midnight Blue"] = Colors("#070B14", "#0A1020", "#10192B", "#17243A", "#243552", "#F2F7FF", "#8294AF", "#3B82F6", "#FB7185"),
                 ["Crimson"] = Colors("#0D080A", "#140B0F", "#1C1015", "#28161D", "#3D222C", "#FFF4F6", "#A98991", "#E11D48", "#FB923C"),
                 ["Emerald"] = Colors("#07100D", "#0A1712", "#10221A", "#173126", "#25483A", "#F0FFF8", "#83A99A", "#10B981", "#F97316"),
-                ["Amber"] = Colors("#0D0B07", "#171208", "#211A0D", "#2E2411", "#49391A", "#FFF9ED", "#AE9C78", "#F59E0B", "#EF4444")
+                ["Amber"] = Colors("#0D0B07", "#171208", "#211A0D", "#2E2411", "#49391A", "#FFF9ED", "#AE9C78", "#F59E0B", "#EF4444"),
+                ["Cherry Blossom"] = Colors("#100A10", "#160D16", "#211321", "#2D192B", "#4A2942", "#FFF4F8", "#B98C9F", "#F472B6", "#FB7185")
             };
 
         public static IReadOnlyDictionary<string, string> ActiveColors { get; private set; } = Themes["Void Purple"];
@@ -32,26 +35,73 @@ namespace VoidLaunch.Services
         public static string GetCode(string themeName)
         {
             var colors = Themes.TryGetValue(themeName, out var selected) ? selected : ActiveColors;
-            var builder = new StringBuilder();
+            return GetCode(colors);
+        }
 
-            foreach (string name in ColorNames)
-                builder.AppendLine($"{name} = {colors[name]}");
+        public static bool IsBuiltIn(string themeName) => Themes.ContainsKey(themeName);
 
-            return builder.ToString().TrimEnd();
+        public static bool TryNormalizeCode(string code, out string normalizedCode, out string error)
+        {
+            if (!TryParse(code, null, true, out Dictionary<string, string> colors, out error))
+            {
+                normalizedCode = string.Empty;
+                return false;
+            }
+
+            normalizedCode = GetCode(colors);
+            return true;
+        }
+
+        public static bool TryGetColors(
+            string code,
+            out IReadOnlyDictionary<string, string> colors,
+            out string error)
+        {
+            bool success = TryParse(code, null, true, out Dictionary<string, string> parsed, out error);
+            colors = parsed;
+            return success;
+        }
+
+        public static double GetContrastRatio(string firstColor, string secondColor)
+        {
+            Color first = (Color)ColorConverter.ConvertFromString(firstColor);
+            Color second = (Color)ColorConverter.ConvertFromString(secondColor);
+            return ContrastRatio(first, second);
         }
 
         public static bool TryApply(ResourceDictionary resources, string code, out string error)
         {
-            var colors = new Dictionary<string, string>(ActiveColors, StringComparer.OrdinalIgnoreCase);
+            if (!TryParse(code, ActiveColors, false, out Dictionary<string, string> colors, out error))
+                return false;
 
-            foreach (string rawLine in code.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+            ActiveColors = colors;
+            ApplyTo(resources);
+            error = string.Empty;
+            return true;
+        }
+
+        private static bool TryParse(
+            string code,
+            IReadOnlyDictionary<string, string>? startingColors,
+            bool requireEveryColor,
+            out Dictionary<string, string> colors,
+            out string error)
+        {
+            colors = startingColors is null
+                ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, string>(startingColors, StringComparer.OrdinalIgnoreCase);
+
+            foreach (string rawLine in (code ?? string.Empty).Split(
+                         new[] { '\r', '\n' },
+                         StringSplitOptions.RemoveEmptyEntries))
             {
                 string line = rawLine.Trim();
                 if (line.Length == 0 || line.StartsWith("//") || line.StartsWith("# "))
                     continue;
 
                 string[] parts = line.Split('=', 2, StringSplitOptions.TrimEntries);
-                string? canonicalName = ColorNames.FirstOrDefault(x => x.Equals(parts[0], StringComparison.OrdinalIgnoreCase));
+                string? canonicalName = ColorNames.FirstOrDefault(
+                    x => x.Equals(parts[0], StringComparison.OrdinalIgnoreCase));
 
                 if (parts.Length != 2 || canonicalName is null)
                 {
@@ -61,8 +111,8 @@ namespace VoidLaunch.Services
 
                 try
                 {
-                    _ = (Color)ColorConverter.ConvertFromString(parts[1]);
-                    colors[canonicalName] = parts[1];
+                    var color = (Color)ColorConverter.ConvertFromString(parts[1]);
+                    colors[canonicalName] = ToHex(color);
                 }
                 catch
                 {
@@ -71,8 +121,17 @@ namespace VoidLaunch.Services
                 }
             }
 
-            ActiveColors = colors;
-            ApplyTo(resources);
+            if (requireEveryColor)
+            {
+                Dictionary<string, string> parsedColors = colors;
+                string[] missing = ColorNames.Where(name => !parsedColors.ContainsKey(name)).ToArray();
+                if (missing.Length > 0)
+                {
+                    error = $"Missing theme colors: {string.Join(", ", missing)}";
+                    return false;
+                }
+            }
+
             error = string.Empty;
             return true;
         }
@@ -91,6 +150,62 @@ namespace VoidLaunch.Services
                 else
                     resources[key] = new SolidColorBrush(value);
             }
+
+            if (ActiveColors.TryGetValue("Accent", out string? accentHex) &&
+                ActiveColors.TryGetValue("Text", out string? textHex) &&
+                ActiveColors.TryGetValue("Background", out string? backgroundHex))
+            {
+                Color accent = (Color)ColorConverter.ConvertFromString(accentHex);
+                Color text = (Color)ColorConverter.ConvertFromString(textHex);
+                Color background = (Color)ColorConverter.ConvertFromString(backgroundHex);
+                Color readable = ContrastRatio(accent, text) >= ContrastRatio(accent, background)
+                    ? text
+                    : background;
+
+                const string accentTextKey = "AccentTextBrush";
+                if (resources[accentTextKey] is SolidColorBrush accentTextBrush && !accentTextBrush.IsFrozen)
+                    accentTextBrush.Color = readable;
+                else
+                    resources[accentTextKey] = new SolidColorBrush(readable);
+            }
+        }
+
+        private static string GetCode(IReadOnlyDictionary<string, string> colors)
+        {
+            var builder = new StringBuilder();
+
+            foreach (string name in ColorNames)
+                builder.AppendLine($"{name} = {colors[name]}");
+
+            return builder.ToString().TrimEnd();
+        }
+
+        private static string ToHex(Color color) => color.A == byte.MaxValue
+            ? $"#{color.R:X2}{color.G:X2}{color.B:X2}"
+            : $"#{color.A:X2}{color.R:X2}{color.G:X2}{color.B:X2}";
+
+        private static double ContrastRatio(Color first, Color second)
+        {
+            double firstLuminance = RelativeLuminance(first);
+            double secondLuminance = RelativeLuminance(second);
+            double lighter = Math.Max(firstLuminance, secondLuminance);
+            double darker = Math.Min(firstLuminance, secondLuminance);
+            return (lighter + 0.05) / (darker + 0.05);
+        }
+
+        private static double RelativeLuminance(Color color)
+        {
+            static double Channel(byte value)
+            {
+                double normalized = value / 255d;
+                return normalized <= 0.04045
+                    ? normalized / 12.92
+                    : Math.Pow((normalized + 0.055) / 1.055, 2.4);
+            }
+
+            return (0.2126 * Channel(color.R)) +
+                   (0.7152 * Channel(color.G)) +
+                   (0.0722 * Channel(color.B));
         }
 
         private static IReadOnlyDictionary<string, string> Colors(
