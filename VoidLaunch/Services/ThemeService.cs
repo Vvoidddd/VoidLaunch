@@ -151,23 +151,41 @@ namespace VoidLaunch.Services
                     resources[key] = new SolidColorBrush(value);
             }
 
-            if (ActiveColors.TryGetValue("Accent", out string? accentHex) &&
-                ActiveColors.TryGetValue("Text", out string? textHex) &&
+            if (ActiveColors.TryGetValue("Text", out string? textHex) &&
                 ActiveColors.TryGetValue("Background", out string? backgroundHex))
             {
-                Color accent = (Color)ColorConverter.ConvertFromString(accentHex);
                 Color text = (Color)ColorConverter.ConvertFromString(textHex);
                 Color background = (Color)ColorConverter.ConvertFromString(backgroundHex);
-                Color readable = ContrastRatio(accent, text) >= ContrastRatio(accent, background)
-                    ? text
-                    : background;
 
-                const string accentTextKey = "AccentTextBrush";
-                if (resources[accentTextKey] is SolidColorBrush accentTextBrush && !accentTextBrush.IsFrozen)
-                    accentTextBrush.Color = readable;
-                else
-                    resources[accentTextKey] = new SolidColorBrush(readable);
+                ApplyReadableForeground(resources, "Accent", "AccentTextBrush", text, background);
+                ApplyReadableForeground(resources, "Error", "ErrorTextBrush", text, background);
+                ApplyBrush(resources, "OverlayBrush", Color.FromArgb(0xB3, background.R, background.G, background.B));
             }
+        }
+
+        private static void ApplyReadableForeground(
+            ResourceDictionary resources,
+            string sourceColorName,
+            string resourceKey,
+            Color text,
+            Color background)
+        {
+            if (!ActiveColors.TryGetValue(sourceColorName, out string? sourceHex))
+                return;
+
+            Color source = (Color)ColorConverter.ConvertFromString(sourceHex);
+            Color readable = ContrastRatio(source, text) >= ContrastRatio(source, background)
+                ? text
+                : background;
+            ApplyBrush(resources, resourceKey, readable);
+        }
+
+        private static void ApplyBrush(ResourceDictionary resources, string resourceKey, Color color)
+        {
+            if (resources[resourceKey] is SolidColorBrush brush && !brush.IsFrozen)
+                brush.Color = color;
+            else
+                resources[resourceKey] = new SolidColorBrush(color);
         }
 
         private static string GetCode(IReadOnlyDictionary<string, string> colors)

@@ -887,7 +887,7 @@ namespace VoidLaunch
                         FindBrush("AccentBrush"),
 
                     Foreground =
-                        FindBrush("TextBrush"),
+                        FindBrush("AccentTextBrush"),
 
                     BorderThickness =
                         new Thickness(0),
@@ -2285,13 +2285,22 @@ namespace VoidLaunch
             };
 
             if (IsInstalledVersion(release.Version))
-                badges.Children.Add(CreateVersionBadge("INSTALLED", FindBrush("CardHoverBrush")));
+                badges.Children.Add(CreateVersionBadge(
+                    "INSTALLED",
+                    FindBrush("CardHoverBrush"),
+                    FindBrush("TextBrush")));
 
             if (isLatest)
-                badges.Children.Add(CreateVersionBadge("LATEST", FindBrush("AccentBrush")));
+                badges.Children.Add(CreateVersionBadge(
+                    "LATEST",
+                    FindBrush("AccentBrush"),
+                    FindBrush("AccentTextBrush")));
 
             if (release.IsPrerelease)
-                badges.Children.Add(CreateVersionBadge("PRERELEASE", FindBrush("ErrorBrush")));
+                badges.Children.Add(CreateVersionBadge(
+                    "PRERELEASE",
+                    FindBrush("ErrorBrush"),
+                    FindBrush("ErrorTextBrush")));
 
             Grid.SetColumn(badges, 1);
             titleRow.Children.Add(badges);
@@ -2352,7 +2361,7 @@ namespace VoidLaunch
             return card;
         }
 
-        private Border CreateVersionBadge(string text, Brush background)
+        private static Border CreateVersionBadge(string text, Brush background, Brush foreground)
         {
             return new Border
             {
@@ -2365,7 +2374,7 @@ namespace VoidLaunch
                     Text = text,
                     FontSize = 9,
                     FontWeight = FontWeights.Bold,
-                    Foreground = FindBrush("TextBrush")
+                    Foreground = foreground
                 }
             };
         }

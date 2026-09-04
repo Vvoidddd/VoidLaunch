@@ -16,6 +16,7 @@
         <SolidColorBrush x:Key="AccentBrush" po:Freeze="False" Color="#8B5CF6" />
         <SolidColorBrush x:Key="AccentTextBrush" po:Freeze="False" Color="#F5F5F7" />
         <SolidColorBrush x:Key="ErrorBrush" po:Freeze="False" Color="#F87171" />
+        <SolidColorBrush x:Key="ErrorTextBrush" po:Freeze="False" Color="#09090D" />
 
         <Style TargetType="{x:Type ScrollBar}">
             <Setter Property="Width" Value="8" />
