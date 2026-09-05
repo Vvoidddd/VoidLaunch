@@ -90,6 +90,8 @@ namespace VoidLaunch
             _updateService =
                 new UpdateService();
 
+            InitializeQolFeatures();
+
             Loaded +=
                 MainWindow_Loaded;
             Closing += MainWindow_Closing;
@@ -115,6 +117,7 @@ namespace VoidLaunch
                 await _libraryService.LoadAsync();
 
             NormalizeLibraryData();
+            await _libraryService.SaveAsync(_library);
             ApplySavedTheme();
             BuildThemeColorEditors();
             BuildThemeButtons();
@@ -127,10 +130,17 @@ namespace VoidLaunch
             await RescanAllFoldersAsync();
         }
 
-        private async Task RescanAllFoldersAsync()
+        private async Task RescanAllFoldersAsync(bool force = false)
         {
-            if (_library.Folders.Count == 0)
+            if (_library.Folders.Count == 0 || _isScanning)
                 return;
+
+            _isScanning = true;
+            _scanCancellation = new System.Threading.CancellationTokenSource();
+            System.Threading.CancellationToken cancellationToken = _scanCancellation.Token;
+            RefreshScanButton.Content = "Cancel scan";
+            LibraryScanProgressBar.Value = 0;
+            LibraryScanProgressBar.Visibility = Visibility.Visible;
 
             try
             {
@@ -140,11 +150,27 @@ namespace VoidLaunch
                 var scannedGames =
                     new List<GameEntry>();
 
-                foreach (string folder in
-                         _library.Folders.ToList())
+                List<string> folders = _library.Folders.ToList();
+                int completedFolders = 0;
+                foreach (string folder in folders)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     if (!Directory.Exists(folder))
+                    {
+                        completedFolders++;
                         continue;
+                    }
+
+                    string signature = await _scanner.GetFolderSignatureAsync(folder, cancellationToken);
+                    FolderScanState? state = _library.Settings.FolderScanStates.FirstOrDefault(item =>
+                        string.Equals(NormalizePath(item.Path), NormalizePath(folder), StringComparison.OrdinalIgnoreCase));
+                    bool recentlyScanned = state?.LastFullScanUtc > DateTime.UtcNow.AddHours(-24);
+                    if (!force && recentlyScanned && string.Equals(state?.Signature, signature, StringComparison.Ordinal))
+                    {
+                        completedFolders++;
+                        LibraryScanProgressBar.Value = completedFolders * 100d / Math.Max(1, folders.Count);
+                        continue;
+                    }
 
                     var progress =
                         new Progress<int>(
@@ -152,14 +178,23 @@ namespace VoidLaunch
                             {
                                 GameFolderText.Text =
                                     $"Scanning {Path.GetFileName(folder)}... {value}%";
+                                LibraryScanProgressBar.Value =
+                                    ((completedFolders * 100d) + value) / Math.Max(1, folders.Count);
                             });
 
                     List<GameEntry> found =
                         await _scanner.ScanAsync(
                             folder,
-                            progress);
+                            progress,
+                            cancellationToken);
 
                     scannedGames.AddRange(found);
+                    completedFolders++;
+                    state ??= new FolderScanState { Path = Path.GetFullPath(folder) };
+                    state.Signature = signature;
+                    state.LastFullScanUtc = DateTime.UtcNow;
+                    if (!_library.Settings.FolderScanStates.Contains(state))
+                        _library.Settings.FolderScanStates.Add(state);
                 }
 
                 MergeScannedGames(
@@ -175,6 +210,10 @@ namespace VoidLaunch
                 UpdateFolderText();
                 RefreshLibrary();
             }
+            catch (OperationCanceledException)
+            {
+                GameFolderText.Text = "Scan canceled. Your existing library was kept.";
+            }
             catch (Exception ex)
             {
                 GameFolderText.Text =
@@ -185,6 +224,15 @@ namespace VoidLaunch
                     "Library Scan Error",
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
+            }
+            finally
+            {
+                _isScanning = false;
+                _scanCancellation?.Dispose();
+                _scanCancellation = null;
+                RefreshScanButton.Content = "Refresh library";
+                LibraryScanProgressBar.Visibility = Visibility.Collapsed;
+                UpdateLibraryControls();
             }
         }
 
@@ -231,14 +279,27 @@ namespace VoidLaunch
                                     NormalizePath(x.ExecutablePath),
                                     executablePath,
                                     StringComparison.OrdinalIgnoreCase));
+
+                existing ??= _library.PendingGames.FirstOrDefault(
+                    x => string.Equals(
+                        NormalizePath(x.InstallDirectory),
+                        installDirectory,
+                        StringComparison.OrdinalIgnoreCase));
                 }
 
                 if (existing == null)
                 {
+                    if (_library.IgnoredScanPaths.Any(path =>
+                            string.Equals(NormalizePath(path), installDirectory, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        continue;
+                    }
+
                     scanned.DateAdded =
                         DateTime.Now;
 
-                    _library.Games.Add(
+                    NormalizeGameEntry(scanned);
+                    _library.PendingGames.Add(
                         scanned);
 
                     continue;
@@ -259,15 +320,27 @@ namespace VoidLaunch
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList();
 
+                string previousExecutable = existing.ExecutablePath;
                 if (!existing.ExecutableManuallySelected || !File.Exists(existing.ExecutablePath))
+                {
                     existing.ExecutablePath = scanned.ExecutablePath;
+                    existing.LaunchProfiles ??= new List<LaunchProfile>();
+                    foreach (LaunchProfile profile in existing.LaunchProfiles.Where(profile =>
+                                 string.Equals(profile.ExecutablePath, previousExecutable, StringComparison.OrdinalIgnoreCase) ||
+                                 string.Equals(profile.Name, "Default", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        profile.ExecutablePath = scanned.ExecutablePath;
+                        if (string.IsNullOrWhiteSpace(profile.WorkingDirectory) || !Directory.Exists(profile.WorkingDirectory))
+                            profile.WorkingDirectory = Path.GetDirectoryName(scanned.ExecutablePath) ?? string.Empty;
+                    }
+                }
 
                 existing.InstallDirectory =
                     scanned.InstallDirectory;
 
-                // Always update artwork if the new scan
-                // found a valid image.
-                if (!string.IsNullOrWhiteSpace(
+                // Never overwrite cover art the user explicitly chose.
+                if (!existing.ImageManuallySelected &&
+                    !string.IsNullOrWhiteSpace(
                         scanned.ImagePath) &&
                     File.Exists(
                         scanned.ImagePath))
@@ -282,7 +355,11 @@ namespace VoidLaunch
                     existing.DateAdded =
                         scanned.DateAdded;
                 }
+
+                NormalizeGameEntry(existing);
             }
+
+            UpdateLibraryControls();
         }
 
         private void RemoveDuplicateGames()
@@ -329,6 +406,24 @@ namespace VoidLaunch
                     int.MaxValue,
                     (long)Math.Max(0, existing.LaunchCount) + Math.Max(0, game.LaunchCount));
 
+                existing.PlaySessions ??= new List<PlaySession>();
+                game.PlaySessions ??= new List<PlaySession>();
+                existing.PlaySessions = existing.PlaySessions
+                    .Concat(game.PlaySessions)
+                    .GroupBy(session => session.Id, StringComparer.OrdinalIgnoreCase)
+                    .Select(group => group.First())
+                    .OrderByDescending(session => session.StartedAt)
+                    .Take(500)
+                    .ToList();
+
+                existing.LaunchProfiles ??= new List<LaunchProfile>();
+                game.LaunchProfiles ??= new List<LaunchProfile>();
+                existing.LaunchProfiles = existing.LaunchProfiles
+                    .Concat(game.LaunchProfiles)
+                    .GroupBy(profile => profile.Id, StringComparer.OrdinalIgnoreCase)
+                    .Select(group => group.First())
+                    .ToList();
+
                 if (game.LastSessionEnded.HasValue &&
                     (!existing.LastSessionEnded.HasValue ||
                      game.LastSessionEnded > existing.LastSessionEnded))
@@ -369,6 +464,12 @@ namespace VoidLaunch
                 {
                     existing.ImagePath =
                         game.ImagePath;
+                }
+
+                if (game.ImageManuallySelected && File.Exists(game.ImagePath))
+                {
+                    existing.ImagePath = game.ImagePath;
+                    existing.ImageManuallySelected = true;
                 }
             }
 
@@ -426,6 +527,17 @@ namespace VoidLaunch
                             return !belongsToLibrary;
                         })
                     .ToList();
+
+            _library.PendingGames = _library.PendingGames
+                .Where(game =>
+                {
+                    if (File.Exists(game.ExecutablePath))
+                        return true;
+
+                    string install = NormalizePath(game.InstallDirectory);
+                    return !configuredFolders.Any(folder => IsPathInside(install, folder));
+                })
+                .ToList();
         }
 
         private static bool IsPathInside(
@@ -523,7 +635,20 @@ namespace VoidLaunch
         {
             int runningSessions = _activeGameSessions.Values.Sum();
             if (_allowCloseWithRunningGames || _isInstallingUpdate || runningSessions == 0)
+            {
+                DisposeTrayIcon();
                 return;
+            }
+
+            if (_library.Settings.CloseToTrayWhilePlaying)
+            {
+                e.Cancel = true;
+                Hide();
+                ShowTrayBalloon(
+                    "VoidLaunch is still tracking playtime",
+                    $"{runningSessions} running game session{(runningSessions == 1 ? string.Empty : "s")} will keep being tracked. Double-click the tray icon to reopen VoidLaunch.");
+                return;
+            }
 
             MessageBoxResult choice = System.Windows.MessageBox.Show(
                 this,
@@ -540,6 +665,7 @@ namespace VoidLaunch
             }
 
             _allowCloseWithRunningGames = true;
+            DisposeTrayIcon();
         }
 
 
@@ -551,6 +677,15 @@ namespace VoidLaunch
             object sender,
             RoutedEventArgs e)
         {
+            if (_isScanning)
+            {
+                System.Windows.MessageBox.Show(
+                    this,
+                    "A library scan is already running. Cancel it or wait for it to finish before adding another folder.",
+                    "Scan in progress");
+                return;
+            }
+
             string? folder =
                 PickFolder();
 
@@ -564,6 +699,7 @@ namespace VoidLaunch
                             NormalizePath(x),
                             NormalizePath(folder),
                             StringComparison.OrdinalIgnoreCase));
+            bool folderWasAdded = !alreadyExists;
 
             if (!alreadyExists)
             {
@@ -573,6 +709,12 @@ namespace VoidLaunch
 
             GameFolderText.Text =
                 "Scanning game folder...";
+            _isScanning = true;
+            _scanCancellation = new System.Threading.CancellationTokenSource();
+            System.Threading.CancellationToken cancellationToken = _scanCancellation.Token;
+            RefreshScanButton.Content = "Cancel scan";
+            LibraryScanProgressBar.Value = 0;
+            LibraryScanProgressBar.Visibility = Visibility.Visible;
 
             try
             {
@@ -582,14 +724,25 @@ namespace VoidLaunch
                         {
                             GameFolderText.Text =
                                 $"Scanning... {value}%";
+                            LibraryScanProgressBar.Value = value;
                         });
 
                 List<GameEntry> found =
                     await _scanner.ScanAsync(
                         folder,
-                        progress);
+                        progress,
+                        cancellationToken);
 
                 MergeScannedGames(found);
+
+                string signature = await _scanner.GetFolderSignatureAsync(folder, cancellationToken);
+                FolderScanState? state = _library.Settings.FolderScanStates.FirstOrDefault(item =>
+                    string.Equals(NormalizePath(item.Path), NormalizePath(folder), StringComparison.OrdinalIgnoreCase));
+                state ??= new FolderScanState { Path = Path.GetFullPath(folder) };
+                state.Signature = signature;
+                state.LastFullScanUtc = DateTime.UtcNow;
+                if (!_library.Settings.FolderScanStates.Contains(state))
+                    _library.Settings.FolderScanStates.Add(state);
 
                 RemoveDuplicateGames();
 
@@ -601,6 +754,13 @@ namespace VoidLaunch
                 UpdateFolderText();
                 RefreshLibrary();
             }
+            catch (OperationCanceledException)
+            {
+                if (folderWasAdded)
+                    _library.Folders.RemoveAll(path =>
+                        string.Equals(NormalizePath(path), NormalizePath(folder), StringComparison.OrdinalIgnoreCase));
+                GameFolderText.Text = "Scan canceled. Your existing library was kept.";
+            }
             catch (Exception ex)
             {
                 GameFolderText.Text =
@@ -611,6 +771,15 @@ namespace VoidLaunch
                     "Scanner Error",
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
+            }
+            finally
+            {
+                _isScanning = false;
+                _scanCancellation?.Dispose();
+                _scanCancellation = null;
+                RefreshScanButton.Content = "Refresh library";
+                LibraryScanProgressBar.Visibility = Visibility.Collapsed;
+                UpdateLibraryControls();
             }
         }
 
@@ -688,6 +857,17 @@ namespace VoidLaunch
                             .OrderByDescending(
                                 x => x.LastPlayed);
                 }
+                else
+                {
+                    games = _library.Settings.LibrarySortMode switch
+                    {
+                        "Recently played" => games.OrderByDescending(game => game.LastPlayed ?? DateTime.MinValue),
+                        "Most played" => games.OrderByDescending(game => game.TotalPlayTimeSeconds)
+                            .ThenBy(game => game.Name, StringComparer.OrdinalIgnoreCase),
+                        "Date added" => games.OrderByDescending(game => game.DateAdded),
+                        _ => games.OrderBy(game => game.Name, StringComparer.OrdinalIgnoreCase)
+                    };
+                }
 
                 string search =
                     SearchBox?.Text?.Trim()
@@ -705,6 +885,9 @@ namespace VoidLaunch
 
                 List<GameEntry> list =
                     games.ToList();
+
+                GameLibrary.Columns = _library.Settings.CompactLibraryView ? 2 : 3;
+                UpdateLibraryControls();
 
                 string gameCount = list.Count == 1
                     ? "1 Game"
@@ -725,7 +908,9 @@ namespace VoidLaunch
                 foreach (GameEntry game in list)
                 {
                     GameLibrary.Children.Add(
-                        CreateGameCard(game));
+                        _library.Settings.CompactLibraryView
+                            ? CreateCompactGameCard(game)
+                            : CreateGameCard(game));
                 }
             }
             finally
@@ -1365,11 +1550,15 @@ namespace VoidLaunch
         private async void LaunchGame(
             GameEntry game)
         {
+            LaunchProfile profile = GetSelectedLaunchProfile(game);
+            string executablePath = string.IsNullOrWhiteSpace(profile.ExecutablePath)
+                ? game.ExecutablePath
+                : profile.ExecutablePath;
             if (!File.Exists(
-                    game.ExecutablePath))
+                    executablePath))
             {
                 System.Windows.MessageBox.Show(
-                    $"The game executable could not be found.\n\n{game.ExecutablePath}",
+                    $"The executable for the '{profile.Name}' profile could not be found.\n\n{executablePath}",
                     "Game Not Found",
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
@@ -1380,7 +1569,7 @@ namespace VoidLaunch
             try
             {
                 var logWindow =
-                    new GameLogWindow(game)
+                    new GameLogWindow(game, profile, _libraryService.DataDirectory)
                     {
                         Owner = this
                     };
@@ -1400,6 +1589,7 @@ namespace VoidLaunch
                 _activeGameSessions[game.Id] = activeSessions == int.MaxValue
                     ? int.MaxValue
                     : activeSessions + 1;
+                UpdateTrayStatus();
 
                 RefreshLibrary();
                 if (_selectedGame?.Id == game.Id)
@@ -1439,6 +1629,18 @@ namespace VoidLaunch
                 sessionSeconds);
             game.LastSessionDurationSeconds = sessionSeconds;
             game.LastSessionEnded = e.EndedAt.LocalDateTime;
+            game.PlaySessions ??= new List<PlaySession>();
+            game.PlaySessions.Insert(
+                0,
+                new PlaySession
+                {
+                    StartedAt = e.StartedAt.LocalDateTime,
+                    EndedAt = e.EndedAt.LocalDateTime,
+                    DurationSeconds = sessionSeconds,
+                    ExitCode = e.ExitCode
+                });
+            if (game.PlaySessions.Count > 500)
+                game.PlaySessions.RemoveRange(500, game.PlaySessions.Count - 500);
 
             if (_activeGameSessions.TryGetValue(game.Id, out int activeSessions))
             {
@@ -1447,11 +1649,15 @@ namespace VoidLaunch
                 else
                     _activeGameSessions[game.Id] = activeSessions - 1;
             }
+            UpdateTrayStatus();
 
             await _libraryService.SaveAsync(_library);
             RefreshLibrary();
             if (_selectedGame?.Id == game.Id)
                 UpdateGameDetailsStats(game);
+
+            if (e.ExitCode != 0)
+                ShowCrashNotification(game, e);
         }
 
 
@@ -1467,6 +1673,7 @@ namespace VoidLaunch
             DetailsExecutableBox.Text = game.ExecutablePath;
             UpdateGameDetailsStats(game);
             RebuildExecutableChoices();
+            RebuildGameDetailsQol(game);
             ShowPage(GameDetailsPage);
         }
 
@@ -1482,13 +1689,16 @@ namespace VoidLaunch
             if (!game.LastPlayed.HasValue)
             {
                 DetailsLastPlayedText.Text = "Never";
-                return;
+            }
+            else
+            {
+                string lastPlayed = game.LastPlayed.Value.ToString("MMM d, yyyy · h:mm tt");
+                DetailsLastPlayedText.Text = game.LastSessionDurationSeconds > 0
+                    ? $"{lastPlayed}\nLast session: {FormatPlayTime(game.LastSessionDurationSeconds)}"
+                    : lastPlayed;
             }
 
-            string lastPlayed = game.LastPlayed.Value.ToString("MMM d, yyyy · h:mm tt");
-            DetailsLastPlayedText.Text = game.LastSessionDurationSeconds > 0
-                ? $"{lastPlayed}\nLast session: {FormatPlayTime(game.LastSessionDurationSeconds)}"
-                : lastPlayed;
+            RebuildSessionHistory(game);
         }
 
         private void RebuildExecutableChoices()
@@ -1537,6 +1747,7 @@ namespace VoidLaunch
 
                     _selectedGame.ExecutablePath = path;
                     _selectedGame.ExecutableManuallySelected = true;
+                    SyncSelectedProfileExecutable(_selectedGame, path);
                     DetailsExecutableBox.Text = path;
                     RebuildExecutableChoices();
                     await _libraryService.SaveAsync(_library);
@@ -1579,6 +1790,7 @@ namespace VoidLaunch
 
             _selectedGame.ExecutablePath = Path.GetFullPath(dialog.FileName);
             _selectedGame.ExecutableManuallySelected = true;
+            SyncSelectedProfileExecutable(_selectedGame, _selectedGame.ExecutablePath);
             _selectedGame.ExecutablePaths ??= new List<string>();
 
             if (!_selectedGame.ExecutablePaths.Contains(dialog.FileName, StringComparer.OrdinalIgnoreCase))
@@ -2293,6 +2505,7 @@ namespace VoidLaunch
             LibraryPage.Visibility = page == LibraryPage ? Visibility.Visible : Visibility.Collapsed;
             GameDetailsPage.Visibility = page == GameDetailsPage ? Visibility.Visible : Visibility.Collapsed;
             SettingsPage.Visibility = page == SettingsPage ? Visibility.Visible : Visibility.Collapsed;
+            ScanReviewPage.Visibility = page == ScanReviewPage ? Visibility.Visible : Visibility.Collapsed;
             DeveloperPage.Visibility = page == DeveloperPage ? Visibility.Visible : Visibility.Collapsed;
             AboutPage.Visibility = page == AboutPage ? Visibility.Visible : Visibility.Collapsed;
             VersionsPage.Visibility = page == VersionsPage ? Visibility.Visible : Visibility.Collapsed;
@@ -2890,9 +3103,16 @@ namespace VoidLaunch
         private void NormalizeLibraryData()
         {
             _library.Games ??= new List<GameEntry>();
+            _library.PendingGames ??= new List<GameEntry>();
+            _library.IgnoredScanPaths ??= new List<string>();
             _library.Folders ??= new List<string>();
             _library.Settings ??= new LauncherSettings();
             _library.Settings.SavedThemes ??= new List<SavedTheme>();
+            _library.Settings.FolderScanStates ??= new List<FolderScanState>();
+
+            string[] sortModes = { "Name", "Recently played", "Most played", "Date added" };
+            if (!sortModes.Contains(_library.Settings.LibrarySortMode, StringComparer.OrdinalIgnoreCase))
+                _library.Settings.LibrarySortMode = "Name";
 
             var normalizedThemes = new List<SavedTheme>();
             foreach (SavedTheme theme in _library.Settings.SavedThemes)
@@ -2951,37 +3171,8 @@ namespace VoidLaunch
                 }
             }
 
-            foreach (GameEntry game in _library.Games)
-            {
-                game.TotalPlayTimeSeconds = Math.Max(0, game.TotalPlayTimeSeconds);
-                game.LastSessionDurationSeconds = Math.Max(0, game.LastSessionDurationSeconds);
-                game.LaunchCount = Math.Max(0, game.LaunchCount);
-                game.ExecutablePaths ??= new List<string>();
-
-                bool keepManualExecutable =
-                    game.ExecutableManuallySelected && File.Exists(game.ExecutablePath);
-
-                game.ExecutablePaths = game.ExecutablePaths
-                    .Append(game.ExecutablePath)
-                    .Where(path =>
-                        GameScanner.IsPotentialGameExecutable(path) ||
-                        (keepManualExecutable && string.Equals(
-                            path,
-                            game.ExecutablePath,
-                            StringComparison.OrdinalIgnoreCase)))
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .OrderByDescending(GameScanner.GetExecutableScore)
-                    .ToList();
-
-                if (!keepManualExecutable &&
-                    !GameScanner.IsPotentialGameExecutable(game.ExecutablePath))
-                {
-                    game.ExecutableManuallySelected = false;
-                    game.ExecutablePath = game.ExecutablePaths.FirstOrDefault() ?? string.Empty;
-                }
-
-                game.Name = GameNameFormatter.CleanDisplayName(game.Name, game.ExecutablePath);
-            }
+            foreach (GameEntry game in _library.Games.Concat(_library.PendingGames))
+                NormalizeGameEntry(game);
 
             _library.Games = _library.Games
                 .Where(game =>
@@ -2989,7 +3180,28 @@ namespace VoidLaunch
                     GameScanner.IsPotentialGameExecutable(game.ExecutablePath))
                 .ToList();
 
+            _library.PendingGames = _library.PendingGames
+                .Where(game =>
+                    (game.ExecutableManuallySelected && File.Exists(game.ExecutablePath)) ||
+                    GameScanner.IsPotentialGameExecutable(game.ExecutablePath))
+                .GroupBy(game => NormalizePath(game.InstallDirectory), StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
+                .ToList();
+
+            _library.IgnoredScanPaths = _library.IgnoredScanPaths
+                .Where(path => !string.IsNullOrWhiteSpace(path))
+                .Select(NormalizePath)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            _library.Settings.FolderScanStates = _library.Settings.FolderScanStates
+                .Where(state => state is not null && !string.IsNullOrWhiteSpace(state.Path))
+                .GroupBy(state => NormalizePath(state.Path), StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.OrderByDescending(state => state.LastFullScanUtc).First())
+                .ToList();
+
             RemoveDuplicateGames();
+            UpdateLibraryControls();
         }
 
         private void ConsolidateNestedInstallDirectories()
@@ -3154,7 +3366,9 @@ namespace VoidLaunch
                 new TextBlock
                 {
                     Text =
-                        "No games yet",
+                        _library.PendingGames.Count > 0
+                            ? $"{_library.PendingGames.Count} game{(_library.PendingGames.Count == 1 ? string.Empty : "s")} waiting"
+                            : "No games yet",
 
                     Margin =
                         new Thickness(
@@ -3179,7 +3393,9 @@ namespace VoidLaunch
                 new TextBlock
                 {
                     Text =
-                        "Add a game folder to begin",
+                        _library.PendingGames.Count > 0
+                            ? "Open Scan Review to add or ignore them"
+                            : "Add a game folder to begin",
 
                     Margin =
                         new Thickness(
@@ -3257,10 +3473,14 @@ namespace VoidLaunch
 
         private void UpdateFolderText()
         {
+            string reviewSuffix = _library.PendingGames.Count > 0
+                ? $" · {_library.PendingGames.Count} waiting for review"
+                : string.Empty;
+
             if (_library.Folders.Count == 0)
             {
                 GameFolderText.Text =
-                    "No game folders configured";
+                    "No game folders configured" + reviewSuffix;
 
                 return;
             }
@@ -3268,13 +3488,13 @@ namespace VoidLaunch
             if (_library.Folders.Count == 1)
             {
                 GameFolderText.Text =
-                    _library.Folders[0];
+                    _library.Folders[0] + reviewSuffix;
 
                 return;
             }
 
             GameFolderText.Text =
-                $"{_library.Folders.Count} game folders configured";
+                $"{_library.Folders.Count} game folders configured{reviewSuffix}";
         }
     }
 }

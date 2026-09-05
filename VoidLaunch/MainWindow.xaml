@@ -436,8 +436,10 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type ProgressBar}">
                         <Border Background="{TemplateBinding Background}" CornerRadius="4" ClipToBounds="True">
-                            <Border x:Name="PART_Indicator" HorizontalAlignment="Left"
-                                    Background="{TemplateBinding Foreground}" CornerRadius="4" />
+                            <Grid x:Name="PART_Track" ClipToBounds="True">
+                                <Border x:Name="PART_Indicator" HorizontalAlignment="Left"
+                                        Background="{TemplateBinding Foreground}" CornerRadius="4" />
+                            </Grid>
                         </Border>
                     </ControlTemplate>
                 </Setter.Value>
@@ -656,6 +658,27 @@
 
                             </Button>
 
+                            <Button Click="ScanReview_Click" Style="{StaticResource SidebarButton}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Width="28" FontSize="16" Text="✓" />
+                                        <TextBlock VerticalAlignment="Center" Text="Scan Review" />
+                                    </StackPanel>
+                                    <Border x:Name="ScanReviewCountBadge" Grid.Column="1" MinWidth="22" Height="22"
+                                            Padding="5,0" VerticalAlignment="Center"
+                                            Background="{DynamicResource AccentBrush}" CornerRadius="8"
+                                            Visibility="Collapsed">
+                                        <TextBlock x:Name="ScanReviewCountText" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   FontSize="10" FontWeight="Bold"
+                                                   Foreground="{DynamicResource AccentTextBrush}" />
+                                    </Border>
+                                </Grid>
+                            </Button>
+
                             <TextBlock Margin="25,27,0,8" FontSize="10" FontWeight="Bold"
                                        Foreground="{DynamicResource SecondaryBrush}" Text="CUSTOMIZE" />
 
@@ -799,12 +822,21 @@
 
                         </StackPanel>
 
-                        <Button
-                            HorizontalAlignment="Right"
-                            VerticalAlignment="Center"
-                            Click="AddFolder_Click"
-                            Content="+ Add Folder"
-                            Style="{StaticResource PrimaryButton}" />
+                        <WrapPanel HorizontalAlignment="Right" VerticalAlignment="Center">
+                            <Button x:Name="SortLibraryButton" Margin="0,0,7,0" Click="SortLibrary_Click"
+                                    Content="Sort: Name" Style="{StaticResource SecondaryButton}" />
+                            <Button x:Name="ViewModeButton" Margin="0,0,7,0" Click="ToggleLibraryView_Click"
+                                    Content="Compact view" Style="{StaticResource SecondaryButton}" />
+                            <Button x:Name="RefreshScanButton" Margin="0,0,7,0" Click="RefreshScan_Click"
+                                    Content="Refresh library" Style="{StaticResource SecondaryButton}" />
+                            <Button Click="AddFolder_Click" Content="+ Add Folder"
+                                    Style="{StaticResource PrimaryButton}" />
+                        </WrapPanel>
+
+                        <ProgressBar x:Name="LibraryScanProgressBar" Height="5" Margin="0,61,0,0"
+                                     HorizontalAlignment="Stretch" VerticalAlignment="Top"
+                                     Minimum="0" Maximum="100" Visibility="Collapsed"
+                                     Style="{StaticResource VoidProgressBar}" />
 
                     </Grid>
 
@@ -904,7 +936,99 @@
                                        Text="EXECUTABLES FOUND IN THIS GAME" />
                             <StackPanel x:Name="ExecutableChoices" Margin="0,7,0,22" />
 
+                            <Border Margin="0,0,0,14" Style="{StaticResource InfoCard}">
+                                <StackPanel>
+                                    <TextBlock FontSize="17" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}"
+                                               Text="Cover art" />
+                                    <TextBlock x:Name="DetailsCoverStatusText" Margin="0,5,0,11"
+                                               Foreground="{DynamicResource SecondaryBrush}" />
+                                    <WrapPanel>
+                                        <Button Margin="0,0,8,8" Content="Choose custom cover…" Click="ChooseCover_Click"
+                                                Style="{StaticResource PrimaryButton}" />
+                                        <Button Margin="0,0,0,8" Content="Use detected artwork" Click="ResetCover_Click"
+                                                Style="{StaticResource SecondaryButton}" />
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Margin="0,0,0,14" Style="{StaticResource InfoCard}">
+                                <StackPanel>
+                                    <Grid Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <TextBlock FontSize="17" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}"
+                                                       Text="Launch profiles" />
+                                            <TextBlock Margin="0,4,0,0" Foreground="{DynamicResource SecondaryBrush}"
+                                                       Text="Make profiles for mods, launch arguments, or administrator mode." />
+                                        </StackPanel>
+                                        <Button HorizontalAlignment="Right" Content="+ New profile" Click="NewLaunchProfile_Click"
+                                                Style="{StaticResource SecondaryButton}" />
+                                    </Grid>
+                                    <WrapPanel x:Name="LaunchProfilesList" Margin="0,0,0,10" />
+
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="12" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock FontSize="10" FontWeight="Bold" Foreground="{DynamicResource SecondaryBrush}"
+                                                       Text="PROFILE NAME" />
+                                            <TextBox x:Name="LaunchProfileNameBox" Margin="0,6,0,10"
+                                                     Style="{StaticResource FieldTextBox}" />
+                                            <TextBlock FontSize="10" FontWeight="Bold" Foreground="{DynamicResource SecondaryBrush}"
+                                                       Text="ARGUMENTS (OPTIONAL)" />
+                                            <TextBox x:Name="LaunchArgumentsBox" Margin="0,6,0,10"
+                                                     Style="{StaticResource FieldTextBox}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock FontSize="10" FontWeight="Bold" Foreground="{DynamicResource SecondaryBrush}"
+                                                       Text="WORKING FOLDER" />
+                                            <Grid Margin="0,6,0,10">
+                                                <TextBox x:Name="LaunchWorkingDirectoryBox" Margin="0,0,84,0"
+                                                         Style="{StaticResource FieldTextBox}" />
+                                                <Button Width="76" HorizontalAlignment="Right" Content="Choose…"
+                                                        Click="ChooseWorkingDirectory_Click"
+                                                        Style="{StaticResource SecondaryButton}" />
+                                            </Grid>
+                                            <Button x:Name="LaunchAdminButton" HorizontalAlignment="Left"
+                                                    Content="Run as administrator: Off" Click="ToggleLaunchAdmin_Click"
+                                                    Style="{StaticResource SecondaryButton}" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <WrapPanel Margin="0,4,0,0" HorizontalAlignment="Right">
+                                        <Button Margin="0,0,8,0" Content="Delete profile" Click="DeleteLaunchProfile_Click"
+                                                Style="{StaticResource SecondaryButton}" />
+                                        <Button Content="Save profile" Click="SaveLaunchProfile_Click"
+                                                Style="{StaticResource PrimaryButton}" />
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Margin="0,0,0,14" Style="{StaticResource InfoCard}">
+                                <StackPanel>
+                                    <TextBlock FontSize="17" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}"
+                                               Text="Play history" />
+                                    <TextBlock Margin="0,5,0,12" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource SecondaryBrush}"
+                                               Text="Sessions are saved locally. Remove a bad session or set the total manually if a game was left running." />
+                                    <Grid Margin="0,0,0,12">
+                                        <TextBox x:Name="DetailsManualPlaytimeBox" Width="180" HorizontalAlignment="Left"
+                                                 ToolTip="Total hours, for example 12.5"
+                                                 Style="{StaticResource FieldTextBox}" />
+                                        <Button Margin="188,0,0,0" HorizontalAlignment="Left" Content="Set total hours"
+                                                Click="SetManualPlaytime_Click" Style="{StaticResource SecondaryButton}" />
+                                    </Grid>
+                                    <TextBlock x:Name="DetailsSessionEmptyText" Margin="0,4,0,0"
+                                               Foreground="{DynamicResource SecondaryBrush}"
+                                               Text="No finished sessions yet." />
+                                    <StackPanel x:Name="DetailsSessionHistory" />
+                                </StackPanel>
+                            </Border>
+
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                <Button Margin="0,0,9,0" Content="Remove &amp; ignore" Click="RemoveAndIgnoreGame_Click"
+                                        Style="{StaticResource SecondaryButton}" />
                                 <Button Content="Save changes" Click="SaveGameDetails_Click"
                                         Style="{StaticResource SecondaryButton}" />
                                 <Button Margin="9,0,0,0" Content="▶  Play selected" Click="PlaySelectedGame_Click"
@@ -1052,6 +1176,69 @@
                                     </Border>
                                 </StackPanel>
                             </Border>
+
+                            <Border Margin="0,0,0,12" Style="{StaticResource InfoCard}">
+                                <StackPanel>
+                                    <TextBlock FontSize="17" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}"
+                                               Text="Data, backups &amp; background tracking" />
+                                    <TextBlock x:Name="StorageModeText" Margin="0,6,0,0" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource SecondaryBrush}" />
+                                    <TextBlock Margin="0,6,0,13" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource SecondaryBrush}"
+                                               Text="Backups include your library, play history, launch profiles, saved themes, settings, and custom covers." />
+                                    <WrapPanel>
+                                        <Button Margin="0,0,8,8" Content="Export backup" Click="ExportBackup_Click"
+                                                Style="{StaticResource SecondaryButton}" />
+                                        <Button Margin="0,0,8,8" Content="Restore backup" Click="RestoreBackup_Click"
+                                                Style="{StaticResource SecondaryButton}" />
+                                        <Button Margin="0,0,8,8" Content="Change portable mode" Click="TogglePortableMode_Click"
+                                                Style="{StaticResource SecondaryButton}" />
+                                        <Button x:Name="TrayModeButton" Margin="0,0,0,8" Content="Close-to-tray: On"
+                                                Click="ToggleTrayMode_Click" Style="{StaticResource PrimaryButton}" />
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+
+                <!-- SCAN REVIEW -->
+                <Grid x:Name="ScanReviewPage" Grid.Column="1" Margin="28" Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="55" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Grid Grid.Row="0">
+                        <Button HorizontalAlignment="Left" Content="←  Library" Click="BackToLibrary_Click"
+                                Style="{StaticResource SecondaryButton}" />
+                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="25"
+                                   FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" Text="Scan Review" />
+                    </Grid>
+                    <Border Grid.Row="1" Margin="0,8,0,12" Style="{StaticResource InfoCard}">
+                        <Grid>
+                            <StackPanel Margin="0,0,260,0">
+                                <TextBlock FontSize="17" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}"
+                                           Text="You decide what becomes a game" />
+                                <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryBrush}"
+                                           Text="New scan results wait here. Add real games or ignore tools, installers, launch helpers, and duplicate entries." />
+                            </StackPanel>
+                            <WrapPanel HorizontalAlignment="Right" VerticalAlignment="Center">
+                                <Button Margin="0,0,8,0" Content="Clear ignored list" Click="ClearIgnored_Click"
+                                        Style="{StaticResource SecondaryButton}" />
+                                <Button Content="Add all" Click="AcceptAllPending_Click"
+                                        Style="{StaticResource PrimaryButton}" />
+                            </WrapPanel>
+                        </Grid>
+                    </Border>
+                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Margin="0,0,12,0">
+                            <TextBlock x:Name="ScanReviewEmptyText" Margin="0,35,0,0"
+                                       HorizontalAlignment="Center" FontSize="15"
+                                       Foreground="{DynamicResource SecondaryBrush}"
+                                       Text="Nothing is waiting for review." />
+                            <StackPanel x:Name="ScanReviewList" />
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>
@@ -1295,7 +1482,7 @@
                                     <TextBlock FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" Text="What stays on your PC" />
                                     <TextBlock Margin="0,9,0,0" TextWrapping="Wrap" LineHeight="21"
                                                Foreground="{DynamicResource SecondaryBrush}"
-                                               Text="Your selected game folders, executable choices, favorites, play history, and theme preferences are stored locally in your VoidLaunch application-data folder." />
+                                               Text="Your selected game folders, executable choices, launch profiles, favorites, play history, logs, custom covers, and theme preferences are stored locally. By default they use your VoidLaunch application-data folder; portable mode keeps them beside the EXE." />
                                 </StackPanel>
                             </Border>
                             <Border Style="{StaticResource InfoCard}" Margin="0,0,0,12">
@@ -1379,6 +1566,44 @@
                                 Content="Update now" Click="UpdateNotificationNow_Click"
                                 Style="{StaticResource PrimaryButton}" />
                     </Grid>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+
+    <!-- Crash follow-up. The complete persisted log can be opened or copied. -->
+    <Border x:Name="CrashNotificationOverlay" Panel.ZIndex="110"
+            Background="{DynamicResource OverlayBrush}" CornerRadius="16"
+            Visibility="Collapsed" Opacity="0">
+        <Grid>
+            <Border Width="500" Padding="28" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Background="{DynamicResource CardBrush}"
+                    BorderBrush="{DynamicResource ErrorBrush}" BorderThickness="1"
+                    CornerRadius="20">
+                <StackPanel>
+                    <Border Width="58" Height="58" HorizontalAlignment="Center"
+                            Background="{DynamicResource ErrorBrush}" CornerRadius="20">
+                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   FontSize="26" FontWeight="Bold"
+                                   Foreground="{DynamicResource AccentTextBrush}" Text="!" />
+                    </Border>
+                    <TextBlock x:Name="CrashNotificationTitleText" Margin="0,18,0,0"
+                               HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
+                               FontSize="22" FontWeight="Bold" Foreground="{DynamicResource TextBrush}" />
+                    <TextBlock x:Name="CrashNotificationDetailsText" Margin="0,9,0,0"
+                               HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
+                               Foreground="{DynamicResource ErrorBrush}" />
+                    <TextBlock Margin="0,13,0,0" TextAlignment="Center" TextWrapping="Wrap"
+                               LineHeight="21" Foreground="{DynamicResource SecondaryBrush}"
+                               Text="VoidLaunch saved the session log locally. You can open it for troubleshooting or copy everything before dismissing this message." />
+                    <WrapPanel Margin="0,22,0,0" HorizontalAlignment="Center">
+                        <Button Margin="0,0,8,0" Content="Copy details" Click="CopyCrashDetails_Click"
+                                Style="{StaticResource SecondaryButton}" />
+                        <Button Margin="0,0,8,0" Content="Open log" Click="OpenCrashLog_Click"
+                                Style="{StaticResource PrimaryButton}" />
+                        <Button Content="Dismiss" Click="DismissCrashNotification_Click"
+                                Style="{StaticResource SecondaryButton}" />
+                    </WrapPanel>
                 </StackPanel>
             </Border>
         </Grid>

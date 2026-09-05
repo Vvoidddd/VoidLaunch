@@ -22,6 +22,15 @@ There is no installer and you do not need to install .NET. Put the EXE wherever 
 - Filter out installers, uninstallers, crash reporters, mod tools, and other junk where possible.
 - Keep favorites and recently played games.
 - Track total playtime, launch count, and the length of the latest session for every game.
+- Keep a local play-session history, remove incorrect sessions, and manually correct total playtime.
+- Stay in the notification tray while a running game is still being tracked.
+- Sort the library by name, recent activity, playtime, or date added and switch between grid and compact views.
+- Pick custom cover art for any game and switch back to detected artwork whenever you want.
+- Review newly scanned games before they enter the library, and remember folders that should be ignored.
+- Save multiple launch profiles per game with arguments, a working folder, and optional administrator mode.
+- Back up and restore the complete library, or keep the data beside the EXE with portable mode.
+- Skip unchanged folders during startup scans, show themed scan progress, and let you cancel a full refresh.
+- Save game logs and show a themed crash follow-up with buttons to open or copy the log.
 - Use the icon from an EXE when there is no cover image.
 - Show game output in a log window that can dock to the side of the launcher.
 - Change the whole launcher in the visual Theme Studio, save named custom themes, and share `.voidtheme` files.
@@ -29,6 +38,7 @@ There is no installer and you do not need to install .NET. Put the EXE wherever 
 - Check GitHub for updates and install a newer release.
 - Show a themed in-app update prompt with Update now and Later choices.
 - Browse every GitHub release and download an older version without replacing the installed one.
+- Show live, theme-colored progress bars while downloading either an update or an older release.
 - Keep a Coming Soon page for the future VoidLaunch download website.
 
 It is still a work in progress, so the scanner will not guess every game perfectly. That is why the manual EXE picker is there.
@@ -59,7 +69,7 @@ The major and minor numbers come from `<Version>` in `VoidLaunch.csproj`. The la
 
 ## Privacy
 
-Game folders, EXE choices, favorites, history, and theme settings stay in the local VoidLaunch app-data folder. There are no ads, accounts, analytics, miners, tracking SDKs, or hidden telemetry. The only automatic internet access is the update check against this GitHub repository.
+Game folders, EXE choices, launch profiles, favorites, history, logs, custom covers, and theme settings stay local. They use the VoidLaunch app-data folder by default, or the folder beside the EXE when portable mode is enabled. There are no ads, accounts, analytics, miners, tracking SDKs, or hidden telemetry. The only automatic internet access is the update check against this GitHub repository.
 
 ## License
 

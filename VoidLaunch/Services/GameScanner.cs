@@ -4,6 +4,8 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using VoidLaunch.Models;
@@ -241,17 +243,7 @@ namespace VoidLaunch.Services
                         gameRoot,
                         executable);
 
-                string artwork =
-                    FindArtwork(gameRoot);
-
-                // If no actual artwork exists, extract the
-                // Windows icon from the selected executable.
-                if (string.IsNullOrWhiteSpace(artwork))
-                {
-                    artwork =
-                        ExtractExecutableIcon(
-                            executable);
-                }
+                string artwork = FindBestArtwork(gameRoot, executable);
 
                 result.Add(
                     new GameEntry
@@ -436,6 +428,76 @@ namespace VoidLaunch.Services
             }
 
             return true;
+        }
+
+        public async Task<string> GetFolderSignatureAsync(
+            string root,
+            CancellationToken cancellationToken = default)
+        {
+            return await Task.Run(
+                () => GetFolderSignature(root, cancellationToken),
+                cancellationToken);
+        }
+
+        public static string FindBestArtwork(string gameDirectory, string executablePath)
+        {
+            string artwork = FindArtwork(gameDirectory);
+            return string.IsNullOrWhiteSpace(artwork)
+                ? ExtractExecutableIcon(executablePath)
+                : artwork;
+        }
+
+        private static string GetFolderSignature(string root, CancellationToken cancellationToken)
+        {
+            if (!Directory.Exists(root))
+                return string.Empty;
+
+            var entries = new List<string>();
+            var directories = new Stack<(string Path, int Depth)>();
+            string fullRoot = Path.GetFullPath(root);
+            directories.Push((fullRoot, 0));
+
+            while (directories.Count > 0 && entries.Count < 10000)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                (string current, int depth) = directories.Pop();
+
+                try
+                {
+                    var info = new DirectoryInfo(current);
+                    entries.Add($"D|{Path.GetRelativePath(fullRoot, current)}|{info.LastWriteTimeUtc.Ticks}");
+
+                    foreach (string executable in Directory.EnumerateFiles(current, "*.exe", SearchOption.TopDirectoryOnly))
+                    {
+                        var file = new FileInfo(executable);
+                        entries.Add(
+                            $"E|{Path.GetRelativePath(fullRoot, executable)}|{file.Length}|{file.LastWriteTimeUtc.Ticks}");
+                    }
+
+                    if (depth >= 2)
+                        continue;
+
+                    foreach (string child in Directory.EnumerateDirectories(current))
+                    {
+                        var childInfo = new DirectoryInfo(child);
+                        if ((childInfo.Attributes & FileAttributes.ReparsePoint) != 0 ||
+                            IgnoredDirectories.Contains(childInfo.Name))
+                        {
+                            continue;
+                        }
+
+                        directories.Push((child, depth + 1));
+                    }
+                }
+                catch
+                {
+                    // Inaccessible folders do not prevent other folders from being fingerprinted.
+                }
+            }
+
+            entries.Sort(StringComparer.OrdinalIgnoreCase);
+            byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('\n', entries)));
+            return Convert.ToHexString(hash);
         }
 
         private static string? ChooseBestExecutable(

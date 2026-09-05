@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
@@ -17,13 +18,15 @@ namespace VoidLaunch
             DateTimeOffset startedAt,
             DateTimeOffset endedAt,
             TimeSpan duration,
-            int exitCode)
+            int exitCode,
+            string logFilePath)
         {
             GameId = gameId;
             StartedAt = startedAt;
             EndedAt = endedAt;
             Duration = duration;
             ExitCode = exitCode;
+            LogFilePath = logFilePath;
         }
 
         public string GameId { get; }
@@ -31,11 +34,13 @@ namespace VoidLaunch
         public DateTimeOffset EndedAt { get; }
         public TimeSpan Duration { get; }
         public int ExitCode { get; }
+        public string LogFilePath { get; }
     }
 
     public partial class GameLogWindow : Window
     {
         private readonly GameEntry _game;
+        private readonly LaunchProfile _profile;
         private Process? _process;
         private Stopwatch? _sessionStopwatch;
         private DockSide _dockSide;
@@ -44,6 +49,7 @@ namespace VoidLaunch
 
         public event EventHandler<GameSessionEndedEventArgs>? SessionEnded;
         public DateTimeOffset? SessionStartedAt { get; private set; }
+        public string LogFilePath { get; }
 
         private enum DockSide
         {
@@ -53,12 +59,34 @@ namespace VoidLaunch
         }
 
         public GameLogWindow(GameEntry game)
+            : this(
+                game,
+                new LaunchProfile
+                {
+                    Name = "Default",
+                    ExecutablePath = game.ExecutablePath,
+                    WorkingDirectory = Path.GetDirectoryName(game.ExecutablePath) ?? string.Empty
+                },
+                null)
+        {
+        }
+
+        public GameLogWindow(GameEntry game, LaunchProfile profile, string? dataDirectory = null)
         {
             InitializeComponent();
 
             ThemeService.ApplyTo(Resources);
 
             _game = game;
+            _profile = profile;
+            string logDirectory = Path.Combine(
+                dataDirectory ?? Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "VoidLaunch"),
+                "Logs",
+                SanitizePathPart(game.Id));
+            Directory.CreateDirectory(logDirectory);
+            LogFilePath = Path.Combine(logDirectory, $"{DateTime.Now:yyyyMMdd-HHmmss}.log");
             Title = $"{game.Name} - Game Log";
             GameNameText.Text = game.Name;
             StatusText.Text = "Preparing to launch...";
@@ -76,11 +104,21 @@ namespace VoidLaunch
             // Explorer starts an executable from the folder that contains it.
             // Using that folder (rather than the scanned game root) is important
             // for games that load DLLs and configuration through relative paths.
-            var workingDirectory = Path.GetDirectoryName(_game.ExecutablePath)
-                ?? string.Empty;
+            string executablePath = string.IsNullOrWhiteSpace(_profile.ExecutablePath)
+                ? _game.ExecutablePath
+                : _profile.ExecutablePath;
+            string workingDirectory = !string.IsNullOrWhiteSpace(_profile.WorkingDirectory) &&
+                                      Directory.Exists(_profile.WorkingDirectory)
+                ? _profile.WorkingDirectory
+                : Path.GetDirectoryName(executablePath) ?? string.Empty;
 
-            AppendLog($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Launching: {_game.ExecutablePath}");
+            AppendLog($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Launching: {executablePath}");
+            AppendLog($"Profile: {_profile.Name}");
             AppendLog($"Working directory: {workingDirectory}");
+            if (!string.IsNullOrWhiteSpace(_profile.Arguments))
+                AppendLog($"Arguments: {_profile.Arguments}");
+            if (_profile.RunAsAdministrator)
+                AppendLog("Run as administrator: Yes");
             AppendLog(string.Empty);
 
             try
@@ -89,9 +127,10 @@ namespace VoidLaunch
                 {
                     StartInfo = new ProcessStartInfo
                     {
-                        FileName = _game.ExecutablePath,
+                        FileName = executablePath,
+                        Arguments = _profile.Arguments ?? string.Empty,
                         WorkingDirectory = workingDirectory,
-                        Verb = "open",
+                        Verb = _profile.RunAsAdministrator ? "runas" : "open",
                         UseShellExecute = true,
                         WindowStyle = ProcessWindowStyle.Normal
                     },
@@ -147,7 +186,8 @@ namespace VoidLaunch
                             startedAt,
                             endedAt,
                             duration,
-                            exitCode));
+                            exitCode,
+                            LogFilePath));
                 });
             }
             catch (Exception ex)
@@ -184,6 +224,24 @@ namespace VoidLaunch
         {
             LogTextBox.AppendText(text + Environment.NewLine);
             LogTextBox.ScrollToEnd();
+
+            try
+            {
+                File.AppendAllText(LogFilePath, text + Environment.NewLine);
+            }
+            catch
+            {
+                // The on-screen log still works if a locked-down folder blocks persistence.
+            }
+        }
+
+        private static string SanitizePathPart(string value)
+        {
+            char[] invalid = Path.GetInvalidFileNameChars();
+            string safe = new string((value ?? string.Empty)
+                .Select(character => invalid.Contains(character) ? '_' : character)
+                .ToArray());
+            return string.IsNullOrWhiteSpace(safe) ? "game" : safe;
         }
 
         private void Copy_Click(object sender, RoutedEventArgs e)
