@@ -21,6 +21,7 @@ There is no installer and you do not need to install .NET. Put the EXE wherever 
 - Launch an EXE through Windows the same way as double-clicking it.
 - Filter out installers, uninstallers, crash reporters, mod tools, and other junk where possible.
 - Keep favorites and recently played games.
+- Track total playtime, launch count, and the length of the latest session for every game.
 - Use the icon from an EXE when there is no cover image.
 - Show game output in a log window that can dock to the side of the launcher.
 - Change the whole launcher in the visual Theme Studio, save named custom themes, and share `.voidtheme` files.

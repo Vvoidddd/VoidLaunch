@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using VoidLaunch.Models;
 
@@ -10,6 +11,7 @@ namespace VoidLaunch.Services
     {
         private readonly string _directory;
         private readonly string _file;
+        private readonly SemaphoreSlim _saveGate = new SemaphoreSlim(1, 1);
 
         private readonly JsonSerializerOptions _options =
             new JsonSerializerOptions
@@ -54,6 +56,7 @@ namespace VoidLaunch.Services
 
         public async Task SaveAsync(LibraryData data)
         {
+            await _saveGate.WaitAsync();
             try
             {
                 Directory.CreateDirectory(_directory);
@@ -79,6 +82,10 @@ namespace VoidLaunch.Services
             {
                 // Don't crash the launcher if the library
                 // cannot be saved.
+            }
+            finally
+            {
+                _saveGate.Release();
             }
         }
     }

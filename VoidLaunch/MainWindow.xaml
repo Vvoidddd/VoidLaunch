@@ -852,8 +852,40 @@
                         <StackPanel Margin="0,0,12,0">
                             <TextBlock x:Name="DetailsGameName" FontSize="28" FontWeight="Bold"
                                        Foreground="{DynamicResource TextBrush}" TextTrimming="CharacterEllipsis" />
-                            <TextBlock Margin="0,7,0,24" Foreground="{DynamicResource SecondaryBrush}"
+                            <TextBlock Margin="0,7,0,16" Foreground="{DynamicResource SecondaryBrush}"
                                        Text="Choose exactly which executable VoidLaunch starts for this game." />
+
+                            <UniformGrid Margin="0,0,0,22" Columns="3">
+                                <Border Margin="0,0,8,0" Padding="13,11" Background="{DynamicResource CardHoverBrush}"
+                                        BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="10">
+                                    <StackPanel>
+                                        <TextBlock FontSize="10" FontWeight="Bold" Foreground="{DynamicResource SecondaryBrush}"
+                                                   Text="TOTAL PLAYTIME" />
+                                        <TextBlock x:Name="DetailsPlayTimeText" Margin="0,6,0,0" FontSize="16"
+                                                   FontWeight="SemiBold" TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource TextBrush}" Text="Not played yet" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Margin="0,0,8,0" Padding="13,11" Background="{DynamicResource CardHoverBrush}"
+                                        BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="10">
+                                    <StackPanel>
+                                        <TextBlock FontSize="10" FontWeight="Bold" Foreground="{DynamicResource SecondaryBrush}"
+                                                   Text="TIMES LAUNCHED" />
+                                        <TextBlock x:Name="DetailsLaunchCountText" Margin="0,6,0,0" FontSize="16"
+                                                   FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" Text="0" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Padding="13,11" Background="{DynamicResource CardHoverBrush}"
+                                        BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="10">
+                                    <StackPanel>
+                                        <TextBlock FontSize="10" FontWeight="Bold" Foreground="{DynamicResource SecondaryBrush}"
+                                                   Text="LAST PLAYED" />
+                                        <TextBlock x:Name="DetailsLastPlayedText" Margin="0,6,0,0" FontSize="13"
+                                                   FontWeight="SemiBold" TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource TextBrush}" Text="Never" />
+                                    </StackPanel>
+                                </Border>
+                            </UniformGrid>
 
                             <TextBlock FontSize="11" FontWeight="Bold" Foreground="{DynamicResource SecondaryBrush}" Text="DISPLAY NAME" />
                             <TextBox x:Name="DetailsNameBox" Margin="0,7,0,18" Style="{StaticResource FieldTextBox}" />

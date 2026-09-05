@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -39,6 +40,8 @@ namespace VoidLaunch
             new Dictionary<string, TextBox>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, Button> _themeColorSwatches =
             new Dictionary<string, Button>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, int> _activeGameSessions =
+            new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
         private static readonly IReadOnlyDictionary<string, string> ThemeColorDescriptions =
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -72,6 +75,7 @@ namespace VoidLaunch
         private string _themeEditorBaselineCode = string.Empty;
         private string _themeEditorBaselineName = string.Empty;
         private bool _themeEditorBaselineIsBuiltIn;
+        private bool _allowCloseWithRunningGames;
 
         public MainWindow()
         {
@@ -88,6 +92,7 @@ namespace VoidLaunch
 
             Loaded +=
                 MainWindow_Loaded;
+            Closing += MainWindow_Closing;
         }
 
         private async void MainWindow_Loaded(
@@ -317,6 +322,20 @@ namespace VoidLaunch
                 // the duplicate.
                 existing.IsFavorite |=
                     game.IsFavorite;
+                existing.TotalPlayTimeSeconds = AddWithoutOverflow(
+                    existing.TotalPlayTimeSeconds,
+                    game.TotalPlayTimeSeconds);
+                existing.LaunchCount = (int)Math.Min(
+                    int.MaxValue,
+                    (long)Math.Max(0, existing.LaunchCount) + Math.Max(0, game.LaunchCount));
+
+                if (game.LastSessionEnded.HasValue &&
+                    (!existing.LastSessionEnded.HasValue ||
+                     game.LastSessionEnded > existing.LastSessionEnded))
+                {
+                    existing.LastSessionEnded = game.LastSessionEnded;
+                    existing.LastSessionDurationSeconds = Math.Max(0, game.LastSessionDurationSeconds);
+                }
 
                 existing.ExecutablePaths ??= new List<string>();
                 game.ExecutablePaths ??= new List<string>();
@@ -500,6 +519,29 @@ namespace VoidLaunch
             Close();
         }
 
+        private void MainWindow_Closing(object? sender, CancelEventArgs e)
+        {
+            int runningSessions = _activeGameSessions.Values.Sum();
+            if (_allowCloseWithRunningGames || _isInstallingUpdate || runningSessions == 0)
+                return;
+
+            MessageBoxResult choice = System.Windows.MessageBox.Show(
+                this,
+                $"{runningSessions} game session{(runningSessions == 1 ? " is" : "s are")} still being tracked. " +
+                "Closing VoidLaunch will stop playtime tracking, but it will not close the game.\n\nClose anyway?",
+                "Game still running",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+
+            if (choice != MessageBoxResult.Yes)
+            {
+                e.Cancel = true;
+                return;
+            }
+
+            _allowCloseWithRunningGames = true;
+        }
+
 
         // ============================================================
         // ADD FOLDER
@@ -664,10 +706,15 @@ namespace VoidLaunch
                 List<GameEntry> list =
                     games.ToList();
 
-                GameCountText.Text =
-                    list.Count == 1
-                        ? "1 Game"
-                        : $"{list.Count} Games";
+                string gameCount = list.Count == 1
+                    ? "1 Game"
+                    : $"{list.Count} Games";
+                long visiblePlayTime = list.Aggregate(
+                    0L,
+                    (total, game) => AddWithoutOverflow(total, game.TotalPlayTimeSeconds));
+                GameCountText.Text = visiblePlayTime > 0
+                    ? $"{gameCount} · {FormatPlayTime(visiblePlayTime)} played"
+                    : gameCount;
 
                 if (list.Count == 0)
                 {
@@ -850,11 +897,32 @@ namespace VoidLaunch
                         VerticalAlignment.Center
                 };
 
-            Grid.SetRow(
-                name,
-                0);
+            bool isRunning = _activeGameSessions.TryGetValue(game.Id, out int activeSessions) &&
+                             activeSessions > 0;
+            var activity = new TextBlock
+            {
+                Margin = new Thickness(0, 4, 0, 0),
+                FontSize = 11,
+                Text = isRunning
+                    ? $"● Running now · {FormatPlayTime(game.TotalPlayTimeSeconds)} total"
+                    : game.TotalPlayTimeSeconds > 0
+                        ? $"{FormatPlayTime(game.TotalPlayTimeSeconds)} played"
+                        : "No playtime yet",
+                TextTrimming = TextTrimming.CharacterEllipsis
+            };
+            activity.SetResourceReference(
+                TextBlock.ForegroundProperty,
+                isRunning ? "AccentBrush" : "SecondaryBrush");
 
-            info.Children.Add(name);
+            var titleArea = new StackPanel
+            {
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            titleArea.Children.Add(name);
+            titleArea.Children.Add(activity);
+
+            Grid.SetRow(titleArea, 0);
+            info.Children.Add(titleArea);
 
 
             // ========================================================
@@ -1316,14 +1384,26 @@ namespace VoidLaunch
                     {
                         Owner = this
                     };
+                logWindow.SessionEnded += GameSessionEnded;
 
                 logWindow.Show();
 
                 if (!await logWindow.StartAsync())
                     return;
 
-                game.LastPlayed =
-                    DateTime.Now;
+                DateTimeOffset startedAt = logWindow.SessionStartedAt ?? DateTimeOffset.UtcNow;
+                game.LastPlayed = startedAt.LocalDateTime;
+                if (game.LaunchCount < int.MaxValue)
+                    game.LaunchCount++;
+
+                _activeGameSessions.TryGetValue(game.Id, out int activeSessions);
+                _activeGameSessions[game.Id] = activeSessions == int.MaxValue
+                    ? int.MaxValue
+                    : activeSessions + 1;
+
+                RefreshLibrary();
+                if (_selectedGame?.Id == game.Id)
+                    UpdateGameDetailsStats(game);
 
                 await _libraryService
                     .SaveAsync(_library);
@@ -1338,6 +1418,42 @@ namespace VoidLaunch
             }
         }
 
+        private async void GameSessionEnded(object? sender, GameSessionEndedEventArgs e)
+        {
+            if (sender is GameLogWindow logWindow)
+                logWindow.SessionEnded -= GameSessionEnded;
+
+            GameEntry? game = _library.Games.FirstOrDefault(item =>
+                string.Equals(item.Id, e.GameId, StringComparison.OrdinalIgnoreCase));
+            if (game is null)
+                return;
+
+            long sessionSeconds = (long)Math.Round(
+                Math.Max(0, e.Duration.TotalSeconds),
+                MidpointRounding.AwayFromZero);
+            if (e.Duration > TimeSpan.Zero && sessionSeconds == 0)
+                sessionSeconds = 1;
+
+            game.TotalPlayTimeSeconds = AddWithoutOverflow(
+                Math.Max(0, game.TotalPlayTimeSeconds),
+                sessionSeconds);
+            game.LastSessionDurationSeconds = sessionSeconds;
+            game.LastSessionEnded = e.EndedAt.LocalDateTime;
+
+            if (_activeGameSessions.TryGetValue(game.Id, out int activeSessions))
+            {
+                if (activeSessions <= 1)
+                    _activeGameSessions.Remove(game.Id);
+                else
+                    _activeGameSessions[game.Id] = activeSessions - 1;
+            }
+
+            await _libraryService.SaveAsync(_library);
+            RefreshLibrary();
+            if (_selectedGame?.Id == game.Id)
+                UpdateGameDetailsStats(game);
+        }
+
 
         // ============================================================
         // GAME DETAILS
@@ -1349,8 +1465,30 @@ namespace VoidLaunch
             DetailsGameName.Text = game.Name;
             DetailsNameBox.Text = game.Name;
             DetailsExecutableBox.Text = game.ExecutablePath;
+            UpdateGameDetailsStats(game);
             RebuildExecutableChoices();
             ShowPage(GameDetailsPage);
+        }
+
+        private void UpdateGameDetailsStats(GameEntry game)
+        {
+            bool isRunning = _activeGameSessions.TryGetValue(game.Id, out int activeSessions) &&
+                             activeSessions > 0;
+            DetailsPlayTimeText.Text = isRunning
+                ? $"{FormatPlayTime(game.TotalPlayTimeSeconds)} + current session"
+                : FormatPlayTime(game.TotalPlayTimeSeconds);
+            DetailsLaunchCountText.Text = game.LaunchCount.ToString("N0");
+
+            if (!game.LastPlayed.HasValue)
+            {
+                DetailsLastPlayedText.Text = "Never";
+                return;
+            }
+
+            string lastPlayed = game.LastPlayed.Value.ToString("MMM d, yyyy · h:mm tt");
+            DetailsLastPlayedText.Text = game.LastSessionDurationSeconds > 0
+                ? $"{lastPlayed}\nLast session: {FormatPlayTime(game.LastSessionDurationSeconds)}"
+                : lastPlayed;
         }
 
         private void RebuildExecutableChoices()
@@ -2533,7 +2671,12 @@ namespace VoidLaunch
         {
             AboutVersionText.Text = $"Version {AppInfo.DisplayVersion} · Windows x64";
             AboutHealthText.Text = "Healthy";
-            AboutGameCountText.Text = $"Library: {_library.Games.Count} game{(_library.Games.Count == 1 ? string.Empty : "s")} loaded";
+            long totalPlayTime = _library.Games.Aggregate(
+                0L,
+                (total, game) => AddWithoutOverflow(total, game.TotalPlayTimeSeconds));
+            AboutGameCountText.Text =
+                $"Library: {_library.Games.Count} game{(_library.Games.Count == 1 ? string.Empty : "s")} loaded · " +
+                $"{FormatPlayTime(totalPlayTime)} total playtime";
             AboutInstallPathText.Text = $"Running from: {Environment.ProcessPath ?? "Unknown"}";
             AboutDataPathText.Text = $"Local data: {_libraryService.DataFilePath}";
             AboutUpdateSourceText.Text = $"Update source: {AppInfo.ReleasesUrl}";
@@ -2810,6 +2953,9 @@ namespace VoidLaunch
 
             foreach (GameEntry game in _library.Games)
             {
+                game.TotalPlayTimeSeconds = Math.Max(0, game.TotalPlayTimeSeconds);
+                game.LastSessionDurationSeconds = Math.Max(0, game.LastSessionDurationSeconds);
+                game.LaunchCount = Math.Max(0, game.LaunchCount);
                 game.ExecutablePaths ??= new List<string>();
 
                 bool keepManualExecutable =
@@ -3073,6 +3219,35 @@ namespace VoidLaunch
         // ============================================================
         // HELPERS
         // ============================================================
+
+        private static string FormatPlayTime(long totalSeconds)
+        {
+            totalSeconds = Math.Max(0, totalSeconds);
+            if (totalSeconds == 0)
+                return "0 min";
+            if (totalSeconds < 60)
+                return "< 1 min";
+
+            long totalMinutes = totalSeconds / 60;
+            if (totalMinutes < 60)
+                return $"{totalMinutes:N0} min";
+
+            long hours = totalMinutes / 60;
+            long minutes = totalMinutes % 60;
+            string hourLabel = hours == 1 ? "hr" : "hrs";
+            return minutes == 0
+                ? $"{hours:N0} {hourLabel}"
+                : $"{hours:N0} {hourLabel} {minutes} min";
+        }
+
+        private static long AddWithoutOverflow(long first, long second)
+        {
+            first = Math.Max(0, first);
+            second = Math.Max(0, second);
+            return long.MaxValue - first < second
+                ? long.MaxValue
+                : first + second;
+        }
 
         private Brush FindBrush(
             string resource)

@@ -14,6 +14,10 @@ namespace VoidLaunch.Models
         public string ImagePath { get; set; } = string.Empty;
         public bool IsFavorite { get; set; }
         public DateTime? LastPlayed { get; set; }
+        public long TotalPlayTimeSeconds { get; set; }
+        public long LastSessionDurationSeconds { get; set; }
+        public DateTime? LastSessionEnded { get; set; }
+        public int LaunchCount { get; set; }
         public DateTime DateAdded { get; set; } = DateTime.Now;
     }
 }

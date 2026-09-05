@@ -10,13 +10,40 @@ using VoidLaunch.Services;
 
 namespace VoidLaunch
 {
+    public sealed class GameSessionEndedEventArgs : EventArgs
+    {
+        public GameSessionEndedEventArgs(
+            string gameId,
+            DateTimeOffset startedAt,
+            DateTimeOffset endedAt,
+            TimeSpan duration,
+            int exitCode)
+        {
+            GameId = gameId;
+            StartedAt = startedAt;
+            EndedAt = endedAt;
+            Duration = duration;
+            ExitCode = exitCode;
+        }
+
+        public string GameId { get; }
+        public DateTimeOffset StartedAt { get; }
+        public DateTimeOffset EndedAt { get; }
+        public TimeSpan Duration { get; }
+        public int ExitCode { get; }
+    }
+
     public partial class GameLogWindow : Window
     {
         private readonly GameEntry _game;
         private Process? _process;
+        private Stopwatch? _sessionStopwatch;
         private DockSide _dockSide;
         private const double DockGap = 6;
         private const double SnapDistance = 42;
+
+        public event EventHandler<GameSessionEndedEventArgs>? SessionEnded;
+        public DateTimeOffset? SessionStartedAt { get; private set; }
 
         private enum DockSide
         {
@@ -74,6 +101,8 @@ namespace VoidLaunch
                 if (!_process.Start())
                     throw new InvalidOperationException("Windows did not start the game process.");
 
+                SessionStartedAt = DateTimeOffset.UtcNow;
+                _sessionStopwatch = Stopwatch.StartNew();
                 StatusText.Text = $"Running (process {_process.Id})";
                 AppendLog($"Process started with ID {_process.Id}.");
                 AppendLog("Started through Windows Shell (the same launch path as double-clicking the executable).");
@@ -96,14 +125,29 @@ namespace VoidLaunch
             try
             {
                 await process.WaitForExitAsync();
+                _sessionStopwatch?.Stop();
+                DateTimeOffset endedAt = DateTimeOffset.UtcNow;
+                DateTimeOffset startedAt = SessionStartedAt ?? endedAt;
+                TimeSpan duration = _sessionStopwatch?.Elapsed ?? endedAt - startedAt;
+                int exitCode = process.ExitCode;
+
                 await Dispatcher.InvokeAsync(() =>
                 {
-                    var exitCode = process.ExitCode;
                     AppendLog(string.Empty);
                     AppendLog($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Process exited with code {exitCode} (0x{exitCode:X8}).");
+                    AppendLog($"Session time: {FormatDuration(duration)}.");
                     StatusText.Text = exitCode == 0
-                        ? "Exited normally"
-                        : $"Exited with error code {exitCode}";
+                        ? $"Exited normally · {FormatDuration(duration)} played"
+                        : $"Exited with error code {exitCode} · {FormatDuration(duration)} played";
+
+                    SessionEnded?.Invoke(
+                        this,
+                        new GameSessionEndedEventArgs(
+                            _game.Id,
+                            startedAt,
+                            endedAt,
+                            duration,
+                            exitCode));
                 });
             }
             catch (Exception ex)
@@ -114,6 +158,26 @@ namespace VoidLaunch
                     AppendLog($"MONITOR ERROR: {ex}");
                 });
             }
+            finally
+            {
+                process.Dispose();
+                if (ReferenceEquals(_process, process))
+                    _process = null;
+            }
+        }
+
+        private static string FormatDuration(TimeSpan duration)
+        {
+            if (duration.TotalMinutes < 1)
+                return $"{Math.Max(1, (int)Math.Round(duration.TotalSeconds))} sec";
+
+            if (duration.TotalHours < 1)
+                return $"{(int)duration.TotalMinutes} min";
+
+            int hours = (int)duration.TotalHours;
+            return duration.Minutes == 0
+                ? $"{hours} hr"
+                : $"{hours} hr {duration.Minutes} min";
         }
 
         private void AppendLog(string text)
